@@ -1,17 +1,8 @@
 use crate::op_code::OpCode;
-use crate::cpu::AddressingMode::{IndexedIndirect, ZeroPage, Immediate, IndirectIndexed, ZeroPageIndexedX, Absolute};
+use crate::addressing::AddressingMode::{IndexedIndirect, ZeroPage, Immediate, IndirectIndexed, ZeroPageIndexed, Absolute, AbsoluteIndexed};
 use crate::bus::Bus;
+use crate::addressing::{Addressing, AddressingMode, AddressingRegistry};
 use std::ops::BitOr;
-
-// Add wrapping around
-enum AddressingMode {
-    IndexedIndirect,
-    IndirectIndexed {add_cycles: bool},
-    ZeroPage,
-    Immediate,
-    Absolute {register: Option<str>, add_cycles: bool},
-    ZeroPageIndexed(String)
-}
 
 #[derive(Debug)]
 struct Cpu {
@@ -97,12 +88,15 @@ impl Cpu {
         self.fetch(address)
     }
 
-    fn fetch_zero_page_indexed(&mut self) -> u8 {
+    fn
 
+    fn fetch_zero_page_indexed(&mut self, addressing: &Addressing) -> u8 {
+        self.cycles += 1;
+        return 2;
     }
 
-    fn fetch_with_addressing_mode(&mut self, addressing_mode: AddressingMode) -> u8 {
-        match addressing_mode {
+    fn fetch_with_addressing_mode(&mut self, addressing: &Addressing) -> u8 {
+        match addressing.mode {
             IndexedIndirect => {
                 self.fetch_indexed_indirect_argument()
             },
@@ -116,13 +110,14 @@ impl Cpu {
                 self.fetch_absolute_argument()
             },
             IndirectIndexed => {
-                add_cycle = true;
                 self.fetch_indirect_indexed()
             },
-//            ZeroPageIndexedX => {
-//                cycles += 2;
-//            },
-            _ => {}
+            ZeroPageIndexed => {
+                self.fetch_zero_page_indexed(addressing)
+            },
+            AbsoluteIndexed => {
+                self.fetch_absolute_indexed(addressing)
+            }
         }
     }
 
@@ -135,12 +130,14 @@ impl Cpu {
         match (op_code.msb(), op_code.lsb()) {
             // BRK
             (0x0, 0x0) => self.force_break(),
-            (0x0, 0x1) => self.or(IndexedIndirect),
-            (0x0, 0x5) => self.or(ZeroPage),
-            (0x0, 0x9) => self.or(Immediate),
-            (0x0, 0xD) => self.or(Absolute {register: None, add_cycles: false}),
-            (0x1, 0x1) => self.or(IndirectIndexed(true)),
-            (0x1, 0x5) => self.or(ZeroPageIndexedX),
+            (0x0, 0x1) => self.or(Addressing::indexed_indirect()),
+            (0x0, 0x5) => self.or(Addressing::zero_page()),
+            (0x0, 0x9) => self.or(Addressing::immediate()),
+            (0x0, 0xD) => self.or(Addressing::absolute()),
+            (0x1, 0x1) => self.or(Addressing::indirect_indexed()),
+            (0x1, 0x5) => self.or(Addressing::zero_page_indexed(Some(AddressingRegistry::X), false)),
+            (0x1, 0x9) => self.or(Addressing::absolute_indexed(Some(AddressingRegistry::Y), true)),
+            (0x1, 0xD) => self.or(Addressing::absolute_indexed(Some(AddressingRegistry::X), true)),
             _ => panic!("Unknown op code")
         }
     }
@@ -152,12 +149,12 @@ impl Cpu {
         cycles
     }
 
-    fn or(&mut self, addressing_mode: AddressingMode) -> u8 {
+    fn or(&mut self, addressing: Addressing) -> u8 {
         println!("OR opcode");
         let cycles = 2;
-        let value = self.fetch_with_addressing_mode(addressing_mode);
+        let value = self.fetch_with_addressing_mode(&addressing);
         self.acc = self.acc | value;
-        if let addressing_mode & self.acc > 0x00FF {
+        if (addressing.add_cycles) & (self.acc > 0x00FF) {
             cycles += 1;
         }
         cycles
