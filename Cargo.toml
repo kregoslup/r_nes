@@ -1,0 +1,11 @@
+[package]
+name = "r_nes"
+version = "0.1.0"
+authors = ["krego <mateusz.olczynski@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dirs = "2.0.2"
+bitflags = "1.2.1"
