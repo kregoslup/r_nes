@@ -1,5 +1,5 @@
 pub struct Addressing {
-    register: Option<AddressingRegistry>,
+    pub register: Option<AddressingRegistry>,
     pub add_cycles: bool,
     pub mode: AddressingMode
 }

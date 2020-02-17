@@ -1,14 +1,25 @@
+use crate::addressing::Addressing;
+
 pub struct OpCode {
     pub value: u8,
 }
 
 impl OpCode {
-    pub fn msb(&self) -> u8 {
-        (self.value & 0xF0) >> 4
+
+    pub fn new(value: u8) -> OpCode {
+        OpCode { value }
     }
 
-    pub fn lsb(&self) -> u8 {
-        self.value & 0x0F
+    pub fn upper_op_code(&self) -> u8 {
+        (self.value & 0b1110_0000) >> 5
+    }
+
+    pub fn mid_op_code(&self) -> u8 {
+        (self.value & 0b0001_1100) >> 2
+    }
+
+    pub fn lower_op_code(&self) -> u8 {
+        self.value & 0b0000_0011
     }
 }
 
@@ -16,15 +27,4 @@ impl OpCode {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_msb() {
-        let x = OpCode { value: 0xF0 };
-        assert_eq!(x.msb(), 0xF)
-    }
-
-    #[test]
-    fn test_lsb() {
-        let x = OpCode { value: 0x0F };
-        assert_eq!(x.lsb(), 0xF)
-    }
 }

@@ -22,7 +22,7 @@ impl Bus {
     }
 
     pub fn fetch(&self, address: u16) -> u8 {
-        self.memory[address as usize]
+        self.memory[(address - 1) as usize]
     }
 }
 
@@ -42,13 +42,5 @@ mod tests {
         let mut tmp_dir = home_dir().unwrap();
         tmp_dir.push(".bash_history");
         assert_ne!(read_file(tmp_dir.as_path()).len(), 0)
-    }
-
-    #[test]
-    fn test_load_rom_not_empty() {
-        let mut tmp_dir = home_dir().unwrap();
-        tmp_dir.push(".bash_history");
-        let bus = Bus::load_rom(tmp_dir.as_path());
-        assert_ne!(memory.fetch_byte_at_offset(0), 0)
     }
 }
