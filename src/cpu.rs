@@ -95,11 +95,11 @@ impl Cpu {
 
     fn fetch_indirect_indexed(&mut self) -> u8 {
         self.program_counter += 1;
-        let indirect_address = (self.fetch(self.program_counter) as u16) + (self.reg_y as u16);
-        let lsb = self.fetch(indirect_address);
-        let msb = self.fetch(indirect_address + 1);
-        let address = combine_u8(lsb, msb);
-        println!("Fetching address {:#01X}", address);
+        let indirect_address = (self.fetch(self.program_counter) as u16);
+        println!("Fetched indirect address {:#01X} at memory location {:#01X}", indirect_address, self.program_counter);
+        // TODO: Add carry
+        let address = indirect_address + (self.reg_y as u16);
+        println!("Created address {:#01X}", address);
         self.fetch(address)
     }
 
@@ -111,6 +111,7 @@ impl Cpu {
             Some(AddressingRegistry::Y) => self.reg_y,
             None => panic!("Addressing registry has to be filled")
         };
+        println!("Fetching indexed address {:#01X} created from {:#01X} and {:#01X}", (base as u16) + (to_add as u16), base, to_add);
         (base as u16) + (to_add as u16)
     }
 
@@ -155,6 +156,7 @@ impl Cpu {
     }
 
     fn extract_addressing(&mut self, mid_op_code: u8, lower_op_code: u8) -> Addressing {
+        println!("Extracting addressing from {:#010b}", mid_op_code);
         match mid_op_code {
             0b0 => Addressing::indexed_indirect(),
             0b001 => Addressing::zero_page(),
@@ -189,14 +191,9 @@ impl Cpu {
 
     fn arithmetic_instruction(&mut self, addressing: Addressing, operation: fn(u8, u8) -> u8, additional_cycle: bool) -> u8 {
         let mut cycles = 2;
-        let value = self.fetch_with_addressing_mode(&addressing);
-        self.acc = operation(self.acc, value);
-        if (self.page_boundary_crossed(self.acc)) & additional_cycle {
-            cycles += 1;
-        }
-        if (addressing.add_cycles) & (self.page_boundary_crossed(self.acc)) {
-            cycles += 1;
-        }
+        self.acc = self.execute_operation(&addressing, operation);
+        cycles += self.add_cycles(cycles, addressing.add_cycles, additional_cycle);
+
         self.set_flag(self.acc, Flags::ZERO);
         self.set_flag(self.acc, Flags::NEGATIVE);
         self.set_flag(self.acc, Flags::CARRY);
@@ -207,16 +204,26 @@ impl Cpu {
 
     fn bitwise_instruction(&mut self, addressing: Addressing, operation: fn(u8, u8) -> u8, additional_cycle: bool) -> u8 {
         let mut cycles = 2;
+        self.acc = self.execute_operation(&addressing, operation);
+        cycles += self.add_cycles(cycles, addressing.add_cycles, additional_cycle);
+
+        self.set_flag(self.acc, Flags::ZERO);
+        self.set_flag(self.acc, Flags::NEGATIVE);
+        cycles
+    }
+
+    fn execute_operation(&mut self, addressing: &Addressing, operation: fn(u8, u8) -> u8) -> u8 {
         let value = self.fetch_with_addressing_mode(&addressing);
-        self.acc = operation(self.acc, value);
+        operation(self.acc, value)
+    }
+
+    fn add_cycles(&mut self, mut cycles: u8, add_cycles: bool, additional_cycle: bool) -> u8 {
         if (self.page_boundary_crossed(self.acc)) & additional_cycle {
             cycles += 1;
         }
-        if (addressing.add_cycles) & (self.page_boundary_crossed(self.acc)) {
+        if (add_cycles) & (self.page_boundary_crossed(self.acc)) {
             cycles += 1;
         }
-        self.set_flag(self.acc, Flags::ZERO);
-        self.set_flag(self.acc, Flags::NEGATIVE);
         cycles
     }
 
@@ -242,11 +249,18 @@ mod tests {
         Cpu::new(bus)
     }
 
+    fn reset_cpu(cpu: &mut Cpu) {
+        cpu.cycles = 0;
+        cpu.acc = 0;
+        cpu.reg_x = 0;
+        cpu.reg_y = 0;
+        cpu.program_counter = 1;
+    }
+
     #[test]
     fn test_bit_or() {
         let mut cpu = create_test_cpu(vec![0x01, 0x03, 0x05, 0x00, 0b1111_1111]);
-        cpu.acc = 0;
-        cpu.reg_x = 0;
+        reset_cpu(&mut cpu);
         cpu.evaluate(OpCode::new(0x01));
         assert_eq!(cpu.acc, 0b1111_1111);
         assert_eq!(cpu.status, Flags::NEGATIVE | Flags::PLACEHOLDER)
@@ -254,9 +268,8 @@ mod tests {
 
     #[test]
     fn test_bit_and() {
-        let mut cpu = create_test_cpu(vec![0x01, 0x03, 0x05, 0x00, 0b1111_1111]);
-        cpu.acc = 0;
-        cpu.reg_x = 0;
+        let mut cpu = create_test_cpu(vec![0x21, 0x03, 0x05, 0x00, 0b1111_1111]);
+        reset_cpu(&mut cpu);
         cpu.evaluate(OpCode::new(0x21));
         assert_eq!(cpu.acc, 0b0000_0000);
         assert_eq!(cpu.status, Flags::ZERO | Flags::PLACEHOLDER)
@@ -264,9 +277,9 @@ mod tests {
 
     #[test]
     fn test_bit_xor() {
-        let mut cpu = create_test_cpu(vec![0x01, 0x03, 0x05, 0x00, 0b1111_1111]);
+        let mut cpu = create_test_cpu(vec![0x41, 0x03, 0x05, 0x00, 0b1111_1111]);
+        reset_cpu(&mut cpu);
         cpu.acc = 0b1111_1111;
-        cpu.reg_x = 0;
         cpu.evaluate(OpCode::new(0x41));
         assert_eq!(cpu.acc, 0b0000_0000);
         assert_eq!(cpu.status, Flags::ZERO | Flags::PLACEHOLDER)
@@ -275,8 +288,7 @@ mod tests {
     #[test]
     fn test_indexed_indirect() {
         let mut cpu = create_test_cpu(vec![0x01, 0x03, 0x05, 0x00, 0b1111_1111]);
-        cpu.acc = 0;
-        cpu.reg_x = 0;
+        reset_cpu(&mut cpu);
         cpu.evaluate(OpCode::new(0x01));
         assert_eq!(cpu.acc, 0b1111_1111);
         assert_eq!(cpu.status, Flags::NEGATIVE | Flags::PLACEHOLDER)
@@ -284,31 +296,57 @@ mod tests {
 
     #[test]
     fn test_zero_page() {
-
+        let mut cpu = create_test_cpu(vec![0x05, 0x03, 0b1111_1111]);
+        reset_cpu(&mut cpu);
+        cpu.evaluate(OpCode::new(0x05));
+        assert_eq!(cpu.acc, 0b1111_1111);
+        assert_eq!(cpu.status, Flags::NEGATIVE | Flags::PLACEHOLDER)
     }
 
     #[test]
     fn test_immediate() {
-
+        let mut cpu = create_test_cpu(vec![0x05, 0b1111_1111]);
+        reset_cpu(&mut cpu);
+        cpu.evaluate(OpCode::new(0x09));
+        assert_eq!(cpu.acc, 0b1111_1111);
+        assert_eq!(cpu.status, Flags::NEGATIVE | Flags::PLACEHOLDER)
     }
 
     #[test]
     fn test_absolute() {
-
+        let mut cpu = create_test_cpu(vec![0x05, 0x4, 0x0, 0b1111_1111]);
+        reset_cpu(&mut cpu);
+        cpu.evaluate(OpCode::new(0x0D));
+        assert_eq!(cpu.acc, 0b1111_1111);
+        assert_eq!(cpu.status, Flags::NEGATIVE | Flags::PLACEHOLDER)
     }
 
     #[test]
     fn test_indirect_indexed() {
-
+        let mut cpu = create_test_cpu(vec![0x05, 0x0, 0b1111_1111, 0x0]);
+        reset_cpu(&mut cpu);
+        cpu.reg_y = 3;
+        cpu.evaluate(OpCode::new(0x11));
+        assert_eq!(cpu.acc, 0b1111_1111);
+        assert_eq!(cpu.status, Flags::NEGATIVE | Flags::PLACEHOLDER)
     }
 
     #[test]
     fn test_zero_page_indexed() {
-
+        let mut cpu = create_test_cpu(vec![0x05, 0x0, 0b1111_1111]);
+        reset_cpu(&mut cpu);
+        cpu.reg_x = 3;
+        cpu.evaluate(OpCode::new(0x15));
+        assert_eq!(cpu.acc, 0b1111_1111);
+        assert_eq!(cpu.status, Flags::NEGATIVE | Flags::PLACEHOLDER)
     }
 
     #[test]
     fn test_absolute_indexed() {
-
+        let mut cpu = create_test_cpu(vec![0x05, 0x4, 0x0, 0b1111_1111]);
+        reset_cpu(&mut cpu);
+        cpu.evaluate(OpCode::new(0x19));
+        assert_eq!(cpu.acc, 0b1111_1111);
+        assert_eq!(cpu.status, Flags::NEGATIVE | Flags::PLACEHOLDER)
     }
 }
