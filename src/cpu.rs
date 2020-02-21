@@ -2,8 +2,11 @@ use crate::op_code::OpCode;
 use crate::addressing::AddressingMode::{IndexedIndirect, ZeroPage, Immediate, IndirectIndexed, ZeroPageIndexed, Absolute, AbsoluteIndexed};
 use crate::bus::Bus;
 use crate::addressing::{Addressing, AddressingMode, AddressingRegistry};
+use crate::util::{wrapping_add, wrapping_sub, combine_u8, msb};
+
 use std::ops::{BitOr, BitAnd, BitXor};
-use std::ops::Add;
+use bitflags::_core::num::Wrapping;
+use std::u8;
 
 #[derive(Debug)]
 struct Cpu {
@@ -44,20 +47,30 @@ impl Cpu {
         }
     }
 
-    fn set_flag(&mut self, acc: u8, flag: Flags) {
+    fn set_flag(&mut self, value: u8, flag: Flags) {
         match flag {
             Flags::NEGATIVE => {
-                if msb(acc) != 0 {
+                if msb(value) != 0 {
                     self.status.toggle(Flags::NEGATIVE)
                 }
             },
             Flags::ZERO => {
-                if acc == 0 {
+                if value == 0 {
                     self.status.insert(Flags::ZERO)
                 } else {
                     self.status.remove(Flags::ZERO)
                 }
-            }
+            },
+            Flags::CARRY => {
+                if value == 1 {
+                    self.status.toggle(Flags::CARRY)
+                }
+            },
+            Flags::OVERFLOW => {
+                if value == 1 {
+                    self.status.toggle(Flags::OVERFLOW)
+                }
+            },
             _ => panic!("Trying to set not supported flag")
         }
     }
@@ -177,7 +190,8 @@ impl Cpu {
             (0b000, _, 0b1) => self.bitwise_instruction(addressing, BitOr::bitor, false),
             (0b001, _, 0b1) => self.bitwise_instruction(addressing, BitAnd::bitand, true),
             (0b010, _, 0b1) => self.bitwise_instruction(addressing, BitXor::bitxor, true),
-            (0b011, _, 0b1) => self.arithmetic_instruction(addressing, Add::add, true),
+            (0b011, _, 0b1) => self.arithmetic_instruction(addressing, wrapping_add, true),
+            (0b111, _, 0b1) => self.arithmetic_instruction(addressing, wrapping_add, true),
             _ => panic!("Unknown op code")
         }
     }
@@ -189,35 +203,44 @@ impl Cpu {
         cycles
     }
 
-    fn arithmetic_instruction(&mut self, addressing: Addressing, operation: fn(u8, u8) -> u8, additional_cycle: bool) -> u8 {
+    fn carry_arithmetic(&mut self, operation: fn(u8, u8) -> (u8, bool), lhs: u8, rhs: u8) -> (u8, bool) {
+        let (intermediate_result, carry_overflow) = operation(lhs, rhs);
+        let (result, overflow) = operation(intermediate_result, self.status.contains(Flags::CARRY) as u8);
+        (result, overflow | carry_overflow)
+    }
+
+    fn overflow_occurred(&self, result: u8, rhs: u8) -> bool {
+        ((self.acc ^ result) & !(self.acc ^ rhs)) == 1
+    }
+
+    fn arithmetic_instruction(&mut self, addressing: Addressing, operation: fn(u8, u8) -> (u8, bool), additional_cycle: bool) -> u8 {
         let mut cycles = 2;
-        self.acc = self.execute_operation(&addressing, operation);
-        cycles += self.add_cycles(cycles, addressing.add_cycles, additional_cycle);
+        let value = self.fetch_with_addressing_mode(&addressing);
+        let (result, carry) = self.carry_arithmetic(operation, self.acc, value);
+        let overflow = self.overflow_occurred(result, value);
+        self.acc = result;
+        cycles += self.count_additional_cycles(cycles, addressing.add_cycles, additional_cycle);
 
         self.set_flag(self.acc, Flags::ZERO);
         self.set_flag(self.acc, Flags::NEGATIVE);
-        self.set_flag(self.acc, Flags::CARRY);
-        self.set_flag(self.acc, Flags::OVERFLOW);
+        self.set_flag(carry as u8, Flags::CARRY);
+        self.set_flag(overflow as u8, Flags::OVERFLOW);
 
         cycles
     }
 
     fn bitwise_instruction(&mut self, addressing: Addressing, operation: fn(u8, u8) -> u8, additional_cycle: bool) -> u8 {
         let mut cycles = 2;
-        self.acc = self.execute_operation(&addressing, operation);
-        cycles += self.add_cycles(cycles, addressing.add_cycles, additional_cycle);
+        let value = self.fetch_with_addressing_mode(&addressing);
+        self.acc = operation(self.acc, value);
+        cycles += self.count_additional_cycles(cycles, addressing.add_cycles, additional_cycle);
 
         self.set_flag(self.acc, Flags::ZERO);
         self.set_flag(self.acc, Flags::NEGATIVE);
         cycles
     }
 
-    fn execute_operation(&mut self, addressing: &Addressing, operation: fn(u8, u8) -> u8) -> u8 {
-        let value = self.fetch_with_addressing_mode(&addressing);
-        operation(self.acc, value)
-    }
-
-    fn add_cycles(&mut self, mut cycles: u8, add_cycles: bool, additional_cycle: bool) -> u8 {
+    fn count_additional_cycles(&mut self, mut cycles: u8, add_cycles: bool, additional_cycle: bool) -> u8 {
         if (self.page_boundary_crossed(self.acc)) & additional_cycle {
             cycles += 1;
         }
@@ -230,14 +253,6 @@ impl Cpu {
     fn page_boundary_crossed(&self, value: u8) -> bool {
         value > 0x00FF
     }
-}
-
-fn combine_u8(lsb: u8, msb: u8) -> u16 {
-    ((msb << 7) as u16).bitor(lsb as u16)
-}
-
-fn msb(value: u8) -> u8 {
-    value >> 7
 }
 
 #[cfg(test)]
@@ -283,6 +298,21 @@ mod tests {
         cpu.evaluate(OpCode::new(0x41));
         assert_eq!(cpu.acc, 0b0000_0000);
         assert_eq!(cpu.status, Flags::ZERO | Flags::PLACEHOLDER)
+    }
+
+    #[test]
+    fn test_adc() {
+
+    }
+
+    #[test]
+    fn test_sbc() {
+
+    }
+
+    #[test]
+    fn test_overflow() {
+
     }
 
     #[test]
