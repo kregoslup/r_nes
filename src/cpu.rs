@@ -2,7 +2,7 @@ use crate::op_code::OpCode;
 use crate::addressing::AddressingMode::{IndexedIndirect, ZeroPage, Immediate, IndirectIndexed, ZeroPageIndexed, Absolute, AbsoluteIndexed};
 use crate::bus::Bus;
 use crate::addressing::{Addressing, AddressingMode, AddressingRegistry};
-use crate::util::{wrapping_add, wrapping_sub, combine_u8, msb};
+use crate::util::{combine_u8, msb};
 
 use std::ops::{BitOr, BitAnd, BitXor};
 use bitflags::_core::num::Wrapping;
@@ -47,31 +47,35 @@ impl Cpu {
         }
     }
 
-    fn set_flag(&mut self, value: u8, flag: Flags) {
-        match flag {
-            Flags::NEGATIVE => {
-                if msb(value) != 0 {
-                    self.status.toggle(Flags::NEGATIVE)
-                }
-            },
-            Flags::ZERO => {
-                if value == 0 {
-                    self.status.insert(Flags::ZERO)
-                } else {
-                    self.status.remove(Flags::ZERO)
-                }
-            },
-            Flags::CARRY => {
-                if value == 1 {
-                    self.status.toggle(Flags::CARRY)
-                }
-            },
-            Flags::OVERFLOW => {
-                if value == 1 {
-                    self.status.toggle(Flags::OVERFLOW)
-                }
-            },
-            _ => panic!("Trying to set not supported flag")
+    fn set_carry(&mut self, result: u16) {
+        if result > 0xFF {
+            self.status.insert(Flags::CARRY)
+        } else {
+            self.status.remove(Flags::CARRY)
+        }
+    }
+
+    fn set_zero(&mut self, result: u16) {
+        if result == 0x00 {
+            self.status.insert(Flags::ZERO)
+        } else {
+            self.status.remove(Flags::ZERO)
+        }
+    }
+
+    fn set_negative(&mut self, result: u16) {
+        if msb(result as u8) == 1 {
+            self.status.insert(Flags::NEGATIVE)
+        } else {
+            self.status.remove(Flags::NEGATIVE)
+        }
+    }
+
+    fn set_overflow(&mut self, lhs: u8, rhs: u8, result: u16) {
+        if self.overflow_occurred(lhs, rhs, (result as u8)) {
+            self.status.insert(Flags::NEGATIVE)
+        } else {
+            self.status.remove(Flags::NEGATIVE)
         }
     }
 
@@ -186,12 +190,13 @@ impl Cpu {
     // Returns cycles
     pub fn evaluate(&mut self, op_code: OpCode) -> u8 {
         let addressing = self.extract_addressing(op_code.mid_op_code(), op_code.lower_op_code());
+        println!("Evaluating op code, hex: {:#02X}, bin: {:#08b}", op_code.value, op_code.value);
         match (op_code.upper_op_code(), op_code.mid_op_code(), op_code.lower_op_code()) {
             (0b000, _, 0b1) => self.bitwise_instruction(addressing, BitOr::bitor, false),
             (0b001, _, 0b1) => self.bitwise_instruction(addressing, BitAnd::bitand, true),
             (0b010, _, 0b1) => self.bitwise_instruction(addressing, BitXor::bitxor, true),
-            (0b011, _, 0b1) => self.arithmetic_instruction(addressing, wrapping_add, true),
-            (0b111, _, 0b1) => self.arithmetic_instruction(addressing, wrapping_add, true),
+            (0b011, _, 0b1) => self.add_with_carry(addressing),
+            (0b111, _, 0b1) => self.sub_with_borrow(addressing),
             _ => panic!("Unknown op code")
         }
     }
@@ -209,34 +214,39 @@ impl Cpu {
         (result, overflow | carry_overflow)
     }
 
-    fn overflow_occurred(&self, result: u8, rhs: u8) -> bool {
-        ((self.acc ^ result) & !(self.acc ^ rhs)) == 1
+    fn overflow_occurred(&self, lhs: u8, rhs: u8, result: u8) -> bool {
+        ((lhs.bitxor(result)) & (rhs.bitxor(result)) & 0x80) != 0
     }
 
-    fn arithmetic_instruction(&mut self, addressing: Addressing, operation: fn(u8, u8) -> (u8, bool), additional_cycle: bool) -> u8 {
+    fn add_with_carry(&mut self, addressing: Addressing) -> u8 {
         let mut cycles = 2;
         let value = self.fetch_with_addressing_mode(&addressing);
-        let (result, carry) = self.carry_arithmetic(operation, self.acc, value);
-        let overflow = self.overflow_occurred(result, value);
-        self.acc = result;
-        cycles += self.count_additional_cycles(cycles, addressing.add_cycles, additional_cycle);
+        let mut result = (self.acc as u16) + (value as u16) + (self.status.contains(Flags::CARRY) as u16);
+        self.set_carry(result);
+        self.set_zero(result);
+        self.set_negative(result);
+        self.set_overflow(self.acc, value, result);
 
-        self.set_flag(self.acc, Flags::ZERO);
-        self.set_flag(self.acc, Flags::NEGATIVE);
-        self.set_flag(carry as u8, Flags::CARRY);
-        self.set_flag(overflow as u8, Flags::OVERFLOW);
+        self.acc = result as u8;
+        cycles += self.count_additional_cycles(cycles, addressing.add_cycles, additional_cycle);
 
         cycles
     }
 
+    fn sub_with_borrow(&mut self, addressing: Addressing) -> u8 {
+
+    }
+
     fn bitwise_instruction(&mut self, addressing: Addressing, operation: fn(u8, u8) -> u8, additional_cycle: bool) -> u8 {
+        println!("Executing bitwise operation");
         let mut cycles = 2;
         let value = self.fetch_with_addressing_mode(&addressing);
         self.acc = operation(self.acc, value);
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, additional_cycle);
 
-        self.set_flag(self.acc, Flags::ZERO);
-        self.set_flag(self.acc, Flags::NEGATIVE);
+        self.set_zero(self.acc as u16);
+        self.set_negative(self.acc as u16);
+
         cycles
     }
 
@@ -302,17 +312,62 @@ mod tests {
 
     #[test]
     fn test_adc() {
-
+        let mut cpu = create_test_cpu(vec![0x61, 0x03, 0x05, 0x00, 2]);
+        reset_cpu(&mut cpu);
+        cpu.acc = 3;
+        cpu.evaluate(OpCode::new(0x61));
+        assert_eq!(cpu.acc, 5);
+        assert_eq!(cpu.status, Flags::PLACEHOLDER)
     }
 
     #[test]
     fn test_sbc() {
-
+        let mut cpu = create_test_cpu(vec![0xE1, 0x03, 0x05, 0x00, 2]);
+        reset_cpu(&mut cpu);
+        cpu.acc = 3;
+        cpu.evaluate(OpCode::new(0xE1));
+        assert_eq!(cpu.acc, 1);
+        assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::CARRY)
     }
 
     #[test]
-    fn test_overflow() {
+    fn test_overflow_sub() {
+//        let mut cpu = create_test_cpu(vec![0xE1, 0x03, 0x05, 0x00, 176]);
+//        reset_cpu(&mut cpu);
+//        cpu.acc = 80;
+//        cpu.evaluate(OpCode::new(0xE1));
+//        assert_eq!(cpu.acc, 160);
+//        assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::OVERFLOW | Flags:: NEGATIVE)
+    }
 
+    #[test]
+    fn test_overflow_add() {
+        let mut cpu = create_test_cpu(vec![0x61, 0x03, 0x05, 0x00, 80]);
+        reset_cpu(&mut cpu);
+        cpu.acc = 80;
+        cpu.evaluate(OpCode::new(0x61));
+        assert_eq!(cpu.acc, 160);
+        assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::OVERFLOW | Flags::NEGATIVE)
+    }
+
+    #[test]
+    fn test_carry() {
+        let mut cpu = create_test_cpu(vec![0x61, 0x03, 0x05, 0x00, 80]);
+        reset_cpu(&mut cpu);
+        cpu.acc = 208;
+        cpu.evaluate(OpCode::new(0x61));
+        assert_eq!(cpu.acc, 32);
+        assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::CARRY)
+    }
+
+    #[test]
+    fn test_borrow() {
+        let mut cpu = create_test_cpu(vec![0xE1, 0x03, 0x05, 0x00, 2]);
+        reset_cpu(&mut cpu);
+        cpu.acc = 1;
+        cpu.evaluate(OpCode::new(0xE1));
+        assert_eq!(cpu.acc, 255);
+        assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::NEGATIVE)
     }
 
     #[test]
