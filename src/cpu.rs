@@ -205,6 +205,7 @@ impl Cpu {
             (0b010, _, 0b1) => self.bitwise_instruction(addressing, BitXor::bitxor, true),
             (0b011, _, 0b1) => self.add_with_carry(addressing),
             (0b111, _, 0b1) => self.sub_with_borrow(addressing),
+            (0b110, _, 0b1) => self.compare(addressing),
             _ => panic!("Unknown op code")
         }
     }
@@ -224,6 +225,21 @@ impl Cpu {
 
     fn overflow_occurred(&self, lhs: u8, rhs: u8, result: u8) -> bool {
         (((lhs.bitxor(result)) & (rhs.bitxor(result))) & 0x80) != 0
+    }
+
+    fn compare(&mut self, addressing: Addressing) -> u8 {
+        let mut cycles = 2;
+        let value = self.fetch_with_addressing_mode(&addressing);
+        let mut result = Wrapping(self.acc as u16) - Wrapping(value as u16);
+        let carry = result <= self.acc;
+        let zero = result == 0;
+        let negative = result > self.acc;
+        // TODO: Set flags
+
+        self.acc = result.0 as u8;
+        cycles += self.count_additional_cycles(cycles, addressing.add_cycles, false);
+
+        cycles
     }
 
     fn add_with_carry(&mut self, addressing: Addressing) -> u8 {
