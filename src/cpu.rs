@@ -33,6 +33,22 @@ bitflags! {
     }
 }
 
+impl Default for Flags {
+    fn default() -> Flags {
+        Flags::PLACEHOLDER
+    }
+}
+
+impl Flags {
+    pub fn set_flag(&mut self, value: bool, flag: Flags) {
+        if value {
+            self.insert(flag)
+        } else {
+            self.remove(flag)
+        }
+    }
+}
+
 impl Cpu {
     pub fn new(bus: Bus) -> Cpu {
         Cpu {
@@ -42,7 +58,7 @@ impl Cpu {
             reg_x: 0,
             reg_y: 0,
             cycles: 0,
-            status: Flags::PLACEHOLDER,
+            status: Default::default(),
             bus
         }
     }
@@ -230,13 +246,14 @@ impl Cpu {
     fn compare(&mut self, addressing: Addressing) -> u8 {
         let mut cycles = 2;
         let value = self.fetch_with_addressing_mode(&addressing);
-        let mut result = Wrapping(self.acc as u16) - Wrapping(value as u16);
+        let mut result = (Wrapping(self.acc) - Wrapping(value)).0;
         let carry = result <= self.acc;
         let zero = result == 0;
         let negative = result > self.acc;
-        // TODO: Set flags
+        self.status.set_flag(negative, Flags::NEGATIVE);
+        self.status.set_flag(carry, Flags::CARRY);
+        self.status.set_flag(zero, Flags::ZERO);
 
-        self.acc = result.0 as u8;
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, false);
 
         cycles
@@ -252,7 +269,7 @@ impl Cpu {
         self.set_negative(result);
         self.set_overflow(self.acc, value, result);
 
-        self.acc = result as u8;
+        self.acc = (result % 256) as u8;
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, true);
 
         cycles
@@ -411,6 +428,28 @@ mod tests {
         cpu.evaluate(OpCode::new(0xE1));
         assert_eq!(cpu.acc, 255);
         assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::NEGATIVE)
+    }
+
+    #[test]
+    fn test_compare() {
+        let mut cpu = create_test_cpu(vec![0xE1, 0x03, 0x05, 0x00, 10]);
+        reset_cpu(&mut cpu);
+        cpu.acc = 10;
+        cpu.evaluate(OpCode::new(0xC1));
+        assert_eq!(cpu.acc, 10);
+        assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::ZERO | Flags::CARRY);
+
+        let mut cpu = create_test_cpu(vec![0xE1, 0x03, 0x05, 0x00, 9]);
+        reset_cpu(&mut cpu);
+        cpu.acc = 10;
+        cpu.evaluate(OpCode::new(0xC1));
+        assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::CARRY);
+
+        let mut cpu = create_test_cpu(vec![0xE1, 0x03, 0x05, 0x00, 11]);
+        reset_cpu(&mut cpu);
+        cpu.acc = 10;
+        cpu.evaluate(OpCode::new(0xC1));
+        assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::NEGATIVE);
     }
 
     #[test]

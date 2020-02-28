@@ -73,7 +73,7 @@ impl Addressing {
         Addressing {
             register: reg,
             add_cycles,
-            mode: AddressingMode::Absolute
+            mode: AddressingMode::ZeroPageIndexed
         }
     }
 }
