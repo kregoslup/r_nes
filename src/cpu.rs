@@ -103,7 +103,7 @@ impl Cpu {
         }
     }
 
-    fn fetch_indexed_indirect(&mut self) -> u8 {
+    fn indexed_indirect_address(&mut self) -> u16 {
         self.program_counter += 1;
         let indirect_address = self.fetch(self.program_counter + (self.reg_x as u16)) as u16;
         println!("Fetching indexed indirect address {:#01X}", indirect_address);
@@ -111,40 +111,40 @@ impl Cpu {
         let msb = self.fetch(indirect_address + 1);
         let address = combine_u8(lsb, msb);
         println!("Fetching address {:#01X}", address);
-        self.fetch(address)
+        address
     }
 
-    fn fetch_zero_page(&mut self) -> u8 {
+    fn zero_page_address(&mut self) -> u16 {
         self.program_counter += 1;
         let lsb = self.fetch(self.program_counter);
         let address = lsb as u16;
-        self.fetch(address)
+        address
     }
 
-    fn fetch_immediate(&mut self) -> u8 {
+    fn immediate_address(&mut self) -> u16 {
         self.program_counter += 1;
-        self.fetch(self.program_counter)
+        self.program_counter
     }
 
-    fn fetch_absolute(&mut self) -> u8 {
+    fn absolute_address(&mut self) -> u16 {
         self.program_counter += 1;
         let lsb = self.fetch(self.program_counter);
         self.program_counter += 1;
         let msb = self.fetch(self.program_counter);
-        self.fetch(combine_u8(lsb, msb))
+        combine_u8(lsb, msb)
     }
 
-    fn fetch_indirect_indexed(&mut self) -> u8 {
+    fn indirect_indexed_address(&mut self) -> u16 {
         self.program_counter += 1;
         let indirect_address = (self.fetch(self.program_counter) as u16);
         println!("Fetched indirect address {:#01X} at memory location {:#01X}", indirect_address, self.program_counter);
         // TODO: Add carry
         let address = indirect_address + (self.reg_y as u16);
         println!("Created address {:#01X}", address);
-        self.fetch(address)
+        address
     }
 
-    fn fetch_indexed(&mut self, addressing: &Addressing) -> u16 {
+    fn indexed_address(&mut self, addressing: &Addressing) -> u16 {
         self.program_counter += 1;
         let base = self.fetch(self.program_counter);
         let to_add = match addressing.register {
@@ -156,44 +156,51 @@ impl Cpu {
         (base as u16) + (to_add as u16)
     }
 
-    fn fetch_zero_page_indexed(&mut self, addressing: &Addressing) -> u8 {
-        let mut address = self.fetch_indexed(addressing) % 256;
-        self.fetch(address)
+    fn zero_page_indexed_address(&mut self, addressing: &Addressing) -> u16 {
+        self.indexed_address(addressing) % 256
     }
 
-    fn fetch_absolute_indexed(&mut self, addressing: &Addressing) -> u8 {
-        let address = self.fetch_indexed(addressing);
-        self.fetch(address)
+    fn absolute_indexed_address(&mut self, addressing: &Addressing) -> u16 {
+        self.indexed_address(addressing)
     }
 
-    fn fetch_with_addressing_mode(&mut self, addressing: &Addressing) -> u8 {
+    fn fetch_address(&mut self, addressing: &Addressing) -> u16 {
         match addressing.mode {
             IndexedIndirect => {
-                self.fetch_indexed_indirect()
+                self.indexed_indirect_address()
             },
             ZeroPage => {
-                self.fetch_zero_page()
+                self.zero_page_address()
             },
             Immediate => {
-                self.fetch_immediate()
+                self.immediate_address()
             },
             Absolute => {
-                self.fetch_absolute()
+                self.absolute_address()
             },
             IndirectIndexed => {
-                self.fetch_indirect_indexed()
+                self.indirect_indexed_address()
             },
             ZeroPageIndexed => {
-                self.fetch_zero_page_indexed(addressing)
+                self.zero_page_indexed_address(addressing)
             },
             AbsoluteIndexed => {
-                self.fetch_absolute_indexed(addressing)
+                self.absolute_indexed_address(addressing)
             }
         }
     }
 
+    fn fetch_with_addressing_mode(&mut self, addressing: &Addressing) -> u8 {
+        let address = self.fetch_address(addressing);
+        self.fetch(address)
+    }
+
     fn fetch(&mut self, address: u16) -> u8 {
         self.bus.fetch(address)
+    }
+
+    fn store(&mut self, value: u8, address: u16) {
+        self.bus.store(value, address);
     }
 
     fn extract_addressing(&mut self, mid_op_code: u8, lower_op_code: u8) -> Addressing {
@@ -222,6 +229,8 @@ impl Cpu {
             (0b011, _, 0b1) => self.add_with_carry(addressing),
             (0b111, _, 0b1) => self.sub_with_borrow(addressing),
             (0b110, _, 0b1) => self.compare(addressing),
+            (0b100, _, 0b1) => self.store_accumulator(addressing),
+            (0b101, _, 0b1) => self.load_accumulator(addressing),
             _ => panic!("Unknown op code")
         }
     }
@@ -230,6 +239,24 @@ impl Cpu {
         println!("BRK op code");
         let cycles = 7;
         self.program_counter += 1;
+        cycles
+    }
+
+    fn store_accumulator(&mut self, addressing: Addressing) -> u8 {
+        let mut cycles = 2;
+        let address = self.fetch_address(&addressing);
+        self.store(self.acc, address);
+        cycles += self.count_additional_cycles(cycles, addressing.add_cycles, false);
+        cycles
+    }
+
+    fn load_accumulator(&mut self, addressing: Addressing) -> u8 {
+        let mut cycles = 2;
+        let value = self.fetch_with_addressing_mode(&addressing);
+        self.set_negative(value as u16);
+        self.set_zero(value as u16);
+        self.acc = value;
+        cycles += self.count_additional_cycles(cycles, addressing.add_cycles, true);
         cycles
     }
 
@@ -450,6 +477,16 @@ mod tests {
         cpu.acc = 10;
         cpu.evaluate(OpCode::new(0xC1));
         assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::NEGATIVE);
+    }
+
+    #[test]
+    fn test_load_accumulator() {
+
+    }
+
+    #[test]
+    fn test_store_accumulator() {
+
     }
 
     #[test]
