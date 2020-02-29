@@ -481,12 +481,21 @@ mod tests {
 
     #[test]
     fn test_load_accumulator() {
-
+        let mut cpu = create_test_cpu(vec![0xE1, 0x03, 0x05, 0x00, 180]);
+        reset_cpu(&mut cpu);
+        cpu.acc = 0;
+        cpu.evaluate(OpCode::new(0xA1));
+        assert_eq!(cpu.acc, 180);
+        assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::NEGATIVE);
     }
 
     #[test]
     fn test_store_accumulator() {
-
+        let mut cpu = create_test_cpu(vec![0xE1, 0x03, 0x05, 0x00, 180]);
+        reset_cpu(&mut cpu);
+        cpu.acc = 10;
+        cpu.evaluate(OpCode::new(0x81));
+        assert_eq!(cpu.fetch(5), 10);
     }
 
     #[test]
