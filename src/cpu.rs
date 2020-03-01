@@ -1,5 +1,5 @@
 use crate::op_code::OpCode;
-use crate::addressing::AddressingMode::{IndexedIndirect, ZeroPage, Immediate, IndirectIndexed, ZeroPageIndexed, Absolute, AbsoluteIndexed};
+use crate::addressing::AddressingMode::{IndexedIndirect, ZeroPage, Immediate, IndirectIndexed, ZeroPageIndexed, Absolute, AbsoluteIndexed, Accumulator};
 use crate::bus::Bus;
 use crate::addressing::{Addressing, AddressingMode, AddressingRegistry};
 use crate::util::{combine_u8, msb};
@@ -186,11 +186,16 @@ impl Cpu {
             },
             AbsoluteIndexed => {
                 self.absolute_indexed_address(addressing)
-            }
+            },
+            // TODO: Improve logging
+            _ => panic!("Cannot fetch address with given address mode")
         }
     }
 
     fn fetch_with_addressing_mode(&mut self, addressing: &Addressing) -> u8 {
+        if addressing.mode == Accumulator {
+            return self.acc
+        }
         let address = self.fetch_address(addressing);
         self.fetch(address)
     }
@@ -205,15 +210,24 @@ impl Cpu {
 
     fn extract_addressing(&mut self, mid_op_code: u8, lower_op_code: u8) -> Addressing {
         println!("Extracting addressing from {:#010b}", mid_op_code);
-        match mid_op_code {
-            0b0 => Addressing::indexed_indirect(),
-            0b001 => Addressing::zero_page(),
-            0b010 => Addressing::immediate(),
-            0b011 => Addressing::absolute(),
-            0b100 => Addressing::indirect_indexed(),
-            0b101 => Addressing::zero_page_indexed(Some(AddressingRegistry::X), false),
-            0b110 => Addressing::absolute_indexed(Some(AddressingRegistry::Y), true),
-            0b111 => Addressing::absolute_indexed(Some(AddressingRegistry::X), false),
+        match (mid_op_code, lower_op_code) {
+            // c == 0b10
+            (0b0, 0b01) => Addressing::indexed_indirect(),
+            (0b001, 0b01) => Addressing::zero_page(),
+            (0b010, 0b01) => Addressing::immediate(),
+            (0b011, 0b01) => Addressing::absolute(),
+            (0b100, 0b01) => Addressing::indirect_indexed(),
+            (0b101, 0b01) => Addressing::zero_page_indexed(Some(AddressingRegistry::X), false),
+            (0b110, 0b01) => Addressing::absolute_indexed(Some(AddressingRegistry::Y), true),
+            (0b111, 0b01) => Addressing::absolute_indexed(Some(AddressingRegistry::X), false),
+            // c == 0b10
+            (0b000, 0b10) => Addressing::immediate(),
+            (0b001, 0b10) => Addressing::zero_page(),
+            (0b010, 0b10) => Addressing::accumulator(),
+            (0b011, 0b10) => Addressing::absolute(),
+            (0b101, 0b10) => Addressing::zero_page_indexed(Some(AddressingRegistry::X), false),
+            (0b111, 0b10) => Addressing::absolute_indexed(Some(AddressingRegistry::X), false),
+            // c == 00
             _ => panic!("Unknown addressing type")
         }
     }
@@ -231,8 +245,18 @@ impl Cpu {
             (0b110, _, 0b1) => self.compare(addressing),
             (0b100, _, 0b1) => self.store_accumulator(addressing),
             (0b101, _, 0b1) => self.load_accumulator(addressing),
+            (_, _, 0b10) => self.shift_left(addressing),
             _ => panic!("Unknown op code")
         }
+    }
+
+    fn shift_left(&mut self, addressing: Addressing) -> u8 {
+        let mut cycles = 2;
+        let value = self.fetch_with_addressing_mode(&addressing);
+
+        self.set_negative()
+        self.set_zero()
+        self.set_carry()
     }
 
     fn force_break(&mut self) -> u8 {

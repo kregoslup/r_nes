@@ -5,6 +5,7 @@ pub struct Addressing {
 }
 
 // Add wrapping around
+#[derive(PartialEq)]
 pub enum AddressingMode {
     IndexedIndirect,
     IndirectIndexed,
@@ -12,7 +13,8 @@ pub enum AddressingMode {
     Immediate,
     Absolute,
     AbsoluteIndexed,
-    ZeroPageIndexed
+    ZeroPageIndexed,
+    Accumulator
 }
 
 pub enum AddressingRegistry {
@@ -74,6 +76,14 @@ impl Addressing {
             register: reg,
             add_cycles,
             mode: AddressingMode::ZeroPageIndexed
+        }
+    }
+
+    pub fn accumulator() -> Addressing {
+        Addressing {
+            register: None,
+            add_cycles: false,
+            mode: AddressingMode::Accumulator
         }
     }
 }
