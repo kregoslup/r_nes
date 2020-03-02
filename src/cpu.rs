@@ -131,6 +131,7 @@ impl Cpu {
         let lsb = self.fetch(self.program_counter);
         self.program_counter += 1;
         let msb = self.fetch(self.program_counter);
+        println!("Fetching absolute address {}", combine_u8(lsb, msb));
         combine_u8(lsb, msb)
     }
 
@@ -252,11 +253,23 @@ impl Cpu {
 
     fn shift_left(&mut self, addressing: Addressing) -> u8 {
         let mut cycles = 2;
+        if addressing.mode == Accumulator {
+            self.acc = result
+        } else {
+            let address = self.fetch_address(&addressing);
+            println!("Storing {} at address {}", value, address);
+            self.store(result, address);
+        }
         let value = self.fetch_with_addressing_mode(&addressing);
+        let (result, carry) = value.overflowing_mul(2);
 
-        self.set_negative()
-        self.set_zero()
-        self.set_carry()
+
+        self.set_negative(result as u16);
+        self.set_zero(result as u16);
+        self.status.set_flag(carry, Flags::CARRY);
+
+        cycles += self.count_additional_cycles(cycles, addressing.add_cycles, false);
+        cycles
     }
 
     fn force_break(&mut self) -> u8 {
@@ -510,7 +523,7 @@ mod tests {
         cpu.acc = 0;
         cpu.evaluate(OpCode::new(0xA1));
         assert_eq!(cpu.acc, 180);
-        assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::NEGATIVE);
+        assert_eq!(cpu.acc, 20);
     }
 
     #[test]
@@ -520,6 +533,22 @@ mod tests {
         cpu.acc = 10;
         cpu.evaluate(OpCode::new(0x81));
         assert_eq!(cpu.fetch(5), 10);
+    }
+
+    #[test]
+    fn test_shift_left() {
+        let mut cpu = create_test_cpu(vec![0xE1, 0x04, 0x00, 20, 5, 6, 7]);
+        reset_cpu(&mut cpu);
+        cpu.evaluate(OpCode::new(0x0E));
+        assert_eq!(cpu.fetch(4), 40);
+
+        // acc
+//        let mut cpu = create_test_cpu(vec![0x0A]);
+//        reset_cpu(&mut cpu);
+//        cpu.acc = 250;
+//        cpu.evaluate(OpCode::new(0x0A));
+//        assert_eq!(cpu.acc, 20);
+//        assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::CARRY);
     }
 
     #[test]
