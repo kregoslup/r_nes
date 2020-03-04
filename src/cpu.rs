@@ -194,9 +194,6 @@ impl Cpu {
     }
 
     fn fetch_with_addressing_mode(&mut self, addressing: &Addressing) -> u8 {
-        if addressing.mode == Accumulator {
-            return self.acc
-        }
         let address = self.fetch_address(addressing);
         self.fetch(address)
     }
@@ -253,16 +250,24 @@ impl Cpu {
 
     fn shift_left(&mut self, addressing: Addressing) -> u8 {
         let mut cycles = 2;
+        let value;
+        let mut address: Option<u16> = None;
+
         if addressing.mode == Accumulator {
-            self.acc = result
+            value = self.acc
         } else {
-            let address = self.fetch_address(&addressing);
-            println!("Storing {} at address {}", value, address);
-            self.store(result, address);
+            let tmp_address = self.fetch_address(&addressing);
+            address = Some(tmp_address);
+            value = self.fetch(tmp_address)
         }
-        let value = self.fetch_with_addressing_mode(&addressing);
+        
         let (result, carry) = value.overflowing_mul(2);
 
+        if addressing.mode == Accumulator {
+            self.acc = result;
+        } else {
+            self.store(result, address.unwrap());
+        }
 
         self.set_negative(result as u16);
         self.set_zero(result as u16);
@@ -542,13 +547,13 @@ mod tests {
         cpu.evaluate(OpCode::new(0x0E));
         assert_eq!(cpu.fetch(4), 40);
 
-        // acc
-//        let mut cpu = create_test_cpu(vec![0x0A]);
-//        reset_cpu(&mut cpu);
-//        cpu.acc = 250;
-//        cpu.evaluate(OpCode::new(0x0A));
-//        assert_eq!(cpu.acc, 20);
-//        assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::CARRY);
+//         acc
+        let mut cpu = create_test_cpu(vec![0x0A]);
+        reset_cpu(&mut cpu);
+        cpu.acc = 250;
+        cpu.evaluate(OpCode::new(0x0A));
+        assert_eq!(cpu.acc, 244);
+        assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::CARRY | Flags::NEGATIVE);
     }
 
     #[test]
