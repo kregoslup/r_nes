@@ -193,17 +193,24 @@ impl Cpu {
         }
     }
 
-    fn fetch_with_addressing_mode(&mut self, addressing: &Addressing) -> u8 {
-        let address = self.fetch_address(addressing);
-        self.fetch(address)
+    fn fetch_with_addressing_mode(&mut self, addressing: &Addressing) -> (u8, Option<u16>) {
+        if addressing.mode == Accumulator {
+            (self.acc, None)
+        } else {
+            let address = self.fetch_address(addressing);
+            (self.fetch(address), Some(address))
+        }
     }
 
     fn fetch(&mut self, address: u16) -> u8 {
         self.bus.fetch(address)
     }
 
-    fn store(&mut self, value: u8, address: u16) {
-        self.bus.store(value, address);
+    fn store(&mut self, value: u8, address: Option<u16>) {
+        match address {
+            None => self.acc = value,
+            Some(add) => self.bus.store(value, add)
+        }
     }
 
     fn extract_addressing(&mut self, mid_op_code: u8, lower_op_code: u8) -> Addressing {
@@ -250,25 +257,9 @@ impl Cpu {
 
     fn shift_left(&mut self, addressing: Addressing) -> u8 {
         let mut cycles = 2;
-        let value;
-        let mut address: Option<u16> = None;
-
-        if addressing.mode == Accumulator {
-            value = self.acc
-        } else {
-            let tmp_address = self.fetch_address(&addressing);
-            address = Some(tmp_address);
-            value = self.fetch(tmp_address)
-        }
-        
+        let (value, address) = self.fetch_with_addressing_mode(&addressing);
         let (result, carry) = value.overflowing_mul(2);
-
-        if addressing.mode == Accumulator {
-            self.acc = result;
-        } else {
-            self.store(result, address.unwrap());
-        }
-
+        self.store(result, address);
         self.set_negative(result as u16);
         self.set_zero(result as u16);
         self.status.set_flag(carry, Flags::CARRY);
@@ -287,14 +278,14 @@ impl Cpu {
     fn store_accumulator(&mut self, addressing: Addressing) -> u8 {
         let mut cycles = 2;
         let address = self.fetch_address(&addressing);
-        self.store(self.acc, address);
+        self.store(self.acc, Some(address));
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, false);
         cycles
     }
 
     fn load_accumulator(&mut self, addressing: Addressing) -> u8 {
         let mut cycles = 2;
-        let value = self.fetch_with_addressing_mode(&addressing);
+        let (value, _) = self.fetch_with_addressing_mode(&addressing);
         self.set_negative(value as u16);
         self.set_zero(value as u16);
         self.acc = value;
@@ -314,7 +305,7 @@ impl Cpu {
 
     fn compare(&mut self, addressing: Addressing) -> u8 {
         let mut cycles = 2;
-        let value = self.fetch_with_addressing_mode(&addressing);
+        let (value, _) = self.fetch_with_addressing_mode(&addressing);
         let mut result = (Wrapping(self.acc) - Wrapping(value)).0;
         let carry = result <= self.acc;
         let zero = result == 0;
@@ -330,7 +321,7 @@ impl Cpu {
 
     fn add_with_carry(&mut self, addressing: Addressing) -> u8 {
         let mut cycles = 2;
-        let value = self.fetch_with_addressing_mode(&addressing);
+        let (value, _) = self.fetch_with_addressing_mode(&addressing);
         let mut result = (self.acc as u16) + (value as u16) + (self.status.contains(Flags::CARRY) as u16);
         println!("ADC result: {:#b}", result);
         self.set_carry(result);
@@ -346,7 +337,7 @@ impl Cpu {
 
     fn sub_with_borrow(&mut self, addressing: Addressing) -> u8 {
         let mut cycles = 2;
-        let value = self.fetch_with_addressing_mode(&addressing);
+        let (value, _) = self.fetch_with_addressing_mode(&addressing);
         let borrow = self.get_borrow();
         let mut result = Wrapping(self.acc as u16) - (Wrapping(value as u16) - Wrapping(self.status.contains(Flags::CARRY) as u16));
         self.set_borrow(result.0);
@@ -363,7 +354,7 @@ impl Cpu {
     fn bitwise_instruction(&mut self, addressing: Addressing, operation: fn(u8, u8) -> u8, additional_cycle: bool) -> u8 {
         println!("Executing bitwise operation");
         let mut cycles = 2;
-        let value = self.fetch_with_addressing_mode(&addressing);
+        let (value, _) = self.fetch_with_addressing_mode(&addressing);
         self.acc = operation(self.acc, value);
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, additional_cycle);
 
@@ -489,6 +480,7 @@ mod tests {
         assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::CARRY)
     }
 
+    // OVERFLOW??
     #[test]
     fn test_borrow() {
         let mut cpu = create_test_cpu(vec![0xE1, 0x03, 0x05, 0x00, 2]);
@@ -528,7 +520,6 @@ mod tests {
         cpu.acc = 0;
         cpu.evaluate(OpCode::new(0xA1));
         assert_eq!(cpu.acc, 180);
-        assert_eq!(cpu.acc, 20);
     }
 
     #[test]
