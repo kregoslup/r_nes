@@ -4,7 +4,7 @@ use crate::bus::Bus;
 use crate::addressing::{Addressing, AddressingMode, AddressingRegistry};
 use crate::util::{combine_u8, msb};
 
-use std::ops::{BitOr, BitAnd, BitXor};
+use std::ops::{BitOr, BitAnd, BitXor, Shl};
 use bitflags::_core::num::Wrapping;
 use std::u8;
 
@@ -250,7 +250,8 @@ impl Cpu {
             (0b110, _, 0b1) => self.compare(addressing),
             (0b100, _, 0b1) => self.store_accumulator(addressing),
             (0b101, _, 0b1) => self.load_accumulator(addressing),
-            (_, _, 0b10) => self.shift_left(addressing),
+            (0b000, _, 0b10) => self.shift_left(addressing),
+            (0b001, _, 0b10) => self.rotate_left(addressing),
             _ => panic!("Unknown op code")
         }
     }
@@ -259,6 +260,23 @@ impl Cpu {
         let mut cycles = 2;
         let (value, address) = self.fetch_with_addressing_mode(&addressing);
         let (result, carry) = value.overflowing_mul(2);
+        self.store(result, address);
+        self.set_negative(result as u16);
+        self.set_zero(result as u16);
+        self.status.set_flag(carry, Flags::CARRY);
+
+        cycles += self.count_additional_cycles(cycles, addressing.add_cycles, false);
+        cycles
+    }
+
+    fn rotate_left(&mut self, addressing: Addressing) -> u8 {
+        let mut cycles = 2;
+        let (value, address) = self.fetch_with_addressing_mode(&addressing);
+        let carry = msb(value) == 1;
+        let mut result = value.shl(1);
+        if self.status.contains(Flags::CARRY) {
+            result = result | Flags::CARRY.bits();
+        }
         self.store(result, address);
         self.set_negative(result as u16);
         self.set_zero(result as u16);
@@ -536,7 +554,7 @@ mod tests {
 
     #[test]
     fn test_shift_left() {
-        let mut cpu = create_test_cpu(vec![0xE1, 0x04, 0x00, 20, 5, 6, 7]);
+        let mut cpu = create_test_cpu(vec![0x0E, 0x04, 0x00, 20, 5, 6, 7]);
         reset_cpu(&mut cpu);
         cpu.evaluate(OpCode::new(0x0E));
         assert_eq!(cpu.fetch(4), 40);
@@ -548,6 +566,16 @@ mod tests {
         cpu.evaluate(OpCode::new(0x0A));
         assert_eq!(cpu.acc, 244);
         assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::CARRY | Flags::NEGATIVE);
+    }
+
+    #[test]
+    fn test_rotate_left() {
+        let mut cpu = create_test_cpu(vec![0x2E, 0x04, 0x00, 0b1000_0000]);
+        reset_cpu(&mut cpu);
+        cpu.status = Flags::PLACEHOLDER | Flags::CARRY;
+        cpu.evaluate(OpCode::new(0x2E));
+        assert_eq!(cpu.fetch(4), 0b0000_0001);
+        assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::CARRY);
     }
 
     #[test]
