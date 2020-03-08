@@ -254,8 +254,33 @@ impl Cpu {
             (0b001, _, 0b10) => self.rotate_left(addressing),
             (0b010, _, 0b10) => self.logical_shift_right(addressing),
             (0b011, _, 0b10) => self.rotate_right(addressing),
+            (0b100, _, 0b10) => self.store_register(addressing, self.reg_x),
             _ => panic!("Unknown op code")
         }
+    }
+
+    fn store_register(&mut self, addressing: Addressing, target: u8) -> u8 {
+        let mut cycles = 2;
+        let fixed_addressing_register = match addressing.register {
+            Some(register) => {
+                if register == AddressingRegistry::X {
+                    Some(AddressingRegistry::Y)
+                } else {
+                    Some(AddressingRegistry::X)
+                }
+            },
+            None => None
+        };
+        let fixed_addressing = Addressing {
+            register: fixed_addressing_register,
+            add_cycles: addressing.add_cycles,
+            mode: addressing.mode
+        };
+        let address = self.fetch_address(&fixed_addressing);
+        self.store(target, Some(address));
+
+        cycles += self.count_additional_cycles(cycles, addressing.add_cycles, false);
+        cycles
     }
 
     fn shift_left(&mut self, addressing: Addressing) -> u8 {
@@ -629,6 +654,15 @@ mod tests {
         cpu.evaluate(OpCode::new(0x6E));
         assert_eq!(cpu.fetch(4), 0b1000_0000);
         assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::NEGATIVE);
+    }
+
+       #[test]
+    fn test_store_register_x() {
+        let mut cpu = create_test_cpu(vec![0x96, 0x04, 0x00, 0b0000_0000]);
+        reset_cpu(&mut cpu);
+        cpu.reg_x = 10;
+        cpu.evaluate(OpCode::new(0x96));
+        assert_eq!(cpu.fetch(4), 10);
     }
 
     #[test]

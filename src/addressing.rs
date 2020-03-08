@@ -17,6 +17,7 @@ pub enum AddressingMode {
     Accumulator
 }
 
+#[derive(PartialEq)]
 pub enum AddressingRegistry {
     X,
     Y
