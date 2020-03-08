@@ -4,7 +4,7 @@ use crate::bus::Bus;
 use crate::addressing::{Addressing, AddressingMode, AddressingRegistry};
 use crate::util::{combine_u8, msb, lsb};
 
-use std::ops::{BitOr, BitAnd, BitXor, Shl};
+use std::ops::{BitOr, BitAnd, BitXor, Shl, Shr};
 use bitflags::_core::num::Wrapping;
 use std::u8;
 
@@ -253,6 +253,7 @@ impl Cpu {
             (0b000, _, 0b10) => self.shift_left(addressing),
             (0b001, _, 0b10) => self.rotate_left(addressing),
             (0b010, _, 0b10) => self.logical_shift_right(addressing),
+            (0b011, _, 0b10) => self.rotate_right(addressing),
             _ => panic!("Unknown op code")
         }
     }
@@ -293,12 +294,31 @@ impl Cpu {
             result = result | Flags::CARRY.bits();
         }
         self.store(result, address);
-        self.set_negative(result as u16);
-        self.set_zero(result as u16);
-        self.status.set_flag(carry, Flags::CARRY);
+        self.set_rotation_flags(result, carry);
 
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, false);
         cycles
+    }
+
+    fn rotate_right(&mut self, addressing: Addressing) -> u8 {
+        let mut cycles = 2;
+        let (value, address) = self.fetch_with_addressing_mode(&addressing);
+        let carry = lsb(value) == 1;
+        let mut result = value.shr(1);
+        if self.status.contains(Flags::CARRY) {
+            result = result | (Flags::CARRY.bits() << 7);
+        }
+        self.store(result, address);
+        self.set_rotation_flags(result, carry);
+
+        cycles += self.count_additional_cycles(cycles, addressing.add_cycles, false);
+        cycles
+    }
+
+    fn set_rotation_flags(&mut self, result: u8, carry: bool) {
+        self.set_negative(result as u16);
+        self.set_zero(result as u16);
+        self.status.set_flag(carry, Flags::CARRY);
     }
 
     fn force_break(&mut self) -> u8 {
@@ -348,7 +368,6 @@ impl Cpu {
         self.status.set_flag(zero, Flags::ZERO);
 
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, false);
-
         cycles
     }
 
@@ -600,6 +619,16 @@ mod tests {
         cpu.evaluate(OpCode::new(0x4E));
         assert_eq!(cpu.fetch(4), 0b0100_0000);
         assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::CARRY);
+    }
+
+    #[test]
+    fn test_rotate_right() {
+        let mut cpu = create_test_cpu(vec![0x6E, 0x04, 0x00, 0b0000_0000]);
+        reset_cpu(&mut cpu);
+        cpu.status = Flags::PLACEHOLDER | Flags::CARRY;
+        cpu.evaluate(OpCode::new(0x6E));
+        assert_eq!(cpu.fetch(4), 0b1000_0000);
+        assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::NEGATIVE);
     }
 
     #[test]
