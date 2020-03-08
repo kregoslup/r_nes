@@ -213,33 +213,9 @@ impl Cpu {
         }
     }
 
-    fn extract_addressing(&mut self, mid_op_code: u8, lower_op_code: u8) -> Addressing {
-        println!("Extracting addressing from {:#010b}", mid_op_code);
-        match (mid_op_code, lower_op_code) {
-            // c == 0b10
-            (0b0, 0b01) => Addressing::indexed_indirect(),
-            (0b001, 0b01) => Addressing::zero_page(),
-            (0b010, 0b01) => Addressing::immediate(),
-            (0b011, 0b01) => Addressing::absolute(),
-            (0b100, 0b01) => Addressing::indirect_indexed(),
-            (0b101, 0b01) => Addressing::zero_page_indexed(Some(AddressingRegistry::X), false),
-            (0b110, 0b01) => Addressing::absolute_indexed(Some(AddressingRegistry::Y), true),
-            (0b111, 0b01) => Addressing::absolute_indexed(Some(AddressingRegistry::X), false),
-            // c == 0b10
-            (0b000, 0b10) => Addressing::immediate(),
-            (0b001, 0b10) => Addressing::zero_page(),
-            (0b010, 0b10) => Addressing::accumulator(),
-            (0b011, 0b10) => Addressing::absolute(),
-            (0b101, 0b10) => Addressing::zero_page_indexed(Some(AddressingRegistry::X), false),
-            (0b111, 0b10) => Addressing::absolute_indexed(Some(AddressingRegistry::X), false),
-            // c == 00
-            _ => panic!("Unknown addressing type")
-        }
-    }
-
     // Returns cycles
     pub fn evaluate(&mut self, op_code: OpCode) -> u8 {
-        let addressing = self.extract_addressing(op_code.mid_op_code(), op_code.lower_op_code());
+        let addressing = Addressing::from_op_code(op_code.mid_op_code(), op_code.lower_op_code());
         println!("Evaluating op code, hex: {:#02X}, bin: {:#08b}", op_code.value, op_code.value);
         match (op_code.upper_op_code(), op_code.mid_op_code(), op_code.lower_op_code()) {
             (0b000, _, 0b1) => self.bitwise_instruction(addressing, BitOr::bitor, false),
