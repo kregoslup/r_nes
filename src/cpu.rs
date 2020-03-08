@@ -256,6 +256,8 @@ impl Cpu {
             (0b011, _, 0b10) => self.rotate_right(addressing),
             (0b100, _, 0b10) => self.store_register(addressing, self.reg_x),
             (0b101, _, 0b10) => self.load_register(addressing, AddressingRegistry::X),
+            (0b110, _, 0b10) => self.offset_by_one(addressing, false),
+            (0b111, _, 0b10) => self.offset_by_one(addressing, true),
             _ => panic!("Unknown op code")
         }
     }
@@ -265,6 +267,22 @@ impl Cpu {
         let fixed_addressing = addressing.to_register_specific_addressing();
         let address = self.fetch_address(&fixed_addressing);
         self.store(target, Some(address));
+
+        cycles += self.count_additional_cycles(cycles, addressing.add_cycles, false);
+        cycles
+    }
+
+    fn offset_by_one(&mut self, addressing: Addressing, increment: bool) -> u8 {
+        let mut cycles = 2;
+        let (mut value, address) = self.fetch_with_addressing_mode(&addressing);
+        if increment {
+            value = (Wrapping(value) + Wrapping(1)).0;
+        } else {
+            value = (Wrapping(value) - Wrapping(1)).0;
+        }
+        self.store(value, address);
+        self.set_negative(value as u16);
+        self.set_zero(value as u16);
 
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, false);
         cycles
@@ -658,7 +676,7 @@ mod tests {
         assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::NEGATIVE);
     }
 
-       #[test]
+    #[test]
     fn test_store_register_x() {
         let mut cpu = create_test_cpu(vec![0x96, 0x04, 0x00, 0b0000_0000]);
         reset_cpu(&mut cpu);
@@ -675,6 +693,22 @@ mod tests {
         cpu.evaluate(OpCode::new(0xB6));
         assert_eq!(cpu.reg_x, 150);
         assert_eq!(cpu.status, Flags::NEGATIVE | Flags::PLACEHOLDER)
+    }
+
+    #[test]
+    fn test_increment() {
+        let mut cpu = create_test_cpu(vec![0xEE, 0x04, 0x00, 0b0000_0000]);
+        reset_cpu(&mut cpu);
+        cpu.evaluate(OpCode::new(0xFE));
+        assert_eq!(cpu.fetch(4), 1);
+    }
+
+    #[test]
+    fn test_decrement() {
+        let mut cpu = create_test_cpu(vec![0xCE, 0x04, 0x00, 1]);
+        reset_cpu(&mut cpu);
+        cpu.evaluate(OpCode::new(0xCE));
+        assert_eq!(cpu.fetch(4), 0);
     }
 
     #[test]
