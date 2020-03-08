@@ -1,3 +1,5 @@
+use std::borrow::{BorrowMut, Borrow};
+
 pub struct Addressing {
     pub register: Option<AddressingRegistry>,
     pub add_cycles: bool,
@@ -5,7 +7,7 @@ pub struct Addressing {
 }
 
 // Add wrapping around
-#[derive(PartialEq)]
+#[derive(PartialEq, Copy, Clone)]
 pub enum AddressingMode {
     IndexedIndirect,
     IndirectIndexed,
@@ -17,7 +19,7 @@ pub enum AddressingMode {
     Accumulator
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Copy, Clone)]
 pub enum AddressingRegistry {
     X,
     Y
@@ -85,6 +87,24 @@ impl Addressing {
             register: None,
             add_cycles: false,
             mode: AddressingMode::Accumulator
+        }
+    }
+
+    pub fn to_register_specific_addressing(&self) -> Addressing {
+        let fixed_addressing_register = match self.register {
+            Some(register) => {
+                if register == AddressingRegistry::X {
+                    Some(AddressingRegistry::Y)
+                } else {
+                    Some(AddressingRegistry::X)
+                }
+            },
+            None => None
+        };
+        Addressing {
+            register: fixed_addressing_register,
+            add_cycles: self.add_cycles,
+            mode: self.mode
         }
     }
 }

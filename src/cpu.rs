@@ -255,31 +255,33 @@ impl Cpu {
             (0b010, _, 0b10) => self.logical_shift_right(addressing),
             (0b011, _, 0b10) => self.rotate_right(addressing),
             (0b100, _, 0b10) => self.store_register(addressing, self.reg_x),
+            (0b101, _, 0b10) => self.load_register(addressing, AddressingRegistry::X),
             _ => panic!("Unknown op code")
         }
     }
 
     fn store_register(&mut self, addressing: Addressing, target: u8) -> u8 {
         let mut cycles = 2;
-        let fixed_addressing_register = match addressing.register {
-            Some(register) => {
-                if register == AddressingRegistry::X {
-                    Some(AddressingRegistry::Y)
-                } else {
-                    Some(AddressingRegistry::X)
-                }
-            },
-            None => None
-        };
-        let fixed_addressing = Addressing {
-            register: fixed_addressing_register,
-            add_cycles: addressing.add_cycles,
-            mode: addressing.mode
-        };
+        let fixed_addressing = addressing.to_register_specific_addressing();
         let address = self.fetch_address(&fixed_addressing);
         self.store(target, Some(address));
 
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, false);
+        cycles
+    }
+
+    fn load_register(&mut self, addressing: Addressing, target: AddressingRegistry) -> u8 {
+        let mut cycles = 2;
+        let fixed_addressing = addressing.to_register_specific_addressing();
+        let (value, _) = self.fetch_with_addressing_mode(&fixed_addressing);
+        self.set_negative(value as u16);
+        self.set_zero(value as u16);
+        if target == AddressingRegistry::X {
+            self.reg_x = value;
+        } else {
+            self.reg_y = value;
+        }
+        cycles += self.count_additional_cycles(cycles, addressing.add_cycles, true);
         cycles
     }
 
@@ -663,6 +665,16 @@ mod tests {
         cpu.reg_x = 10;
         cpu.evaluate(OpCode::new(0x96));
         assert_eq!(cpu.fetch(4), 10);
+    }
+
+    #[test]
+    fn test_load_register_x() {
+        let mut cpu = create_test_cpu(vec![0xB6, 0x04, 0x00, 150]);
+        reset_cpu(&mut cpu);
+        cpu.reg_x = 10;
+        cpu.evaluate(OpCode::new(0xB6));
+        assert_eq!(cpu.reg_x, 150);
+        assert_eq!(cpu.status, Flags::NEGATIVE | Flags::PLACEHOLDER)
     }
 
     #[test]
