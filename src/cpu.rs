@@ -2,7 +2,7 @@ use crate::op_code::OpCode;
 use crate::addressing::AddressingMode::{IndexedIndirect, ZeroPage, Immediate, IndirectIndexed, ZeroPageIndexed, Absolute, AbsoluteIndexed, Accumulator};
 use crate::bus::Bus;
 use crate::addressing::{Addressing, AddressingMode, AddressingRegistry};
-use crate::util::{combine_u8, msb, lsb};
+use crate::util::{combine_u8, msb, lsb, nth_bit};
 
 use std::ops::{BitOr, BitAnd, BitXor, Shl, Shr};
 use bitflags::_core::num::Wrapping;
@@ -234,8 +234,26 @@ impl Cpu {
             (0b101, _, 0b10) => self.load_register(addressing, AddressingRegistry::X),
             (0b110, _, 0b10) => self.offset_by_one(addressing, false),
             (0b111, _, 0b10) => self.offset_by_one(addressing, true),
+            (0b001, _, 0b00) => self.bit_test(addressing),
             _ => panic!("Unknown op code")
         }
+    }
+
+    fn bit_test(&mut self, addressing: Addressing) -> u8 {
+        let mut cycles = 3;
+        let (to_test, _) = self.fetch_with_addressing_mode(&addressing);
+        let zero = (to_test & self.acc) == 0;
+        let negative = msb(to_test) == 1;
+        let overflow = nth_bit(to_test, 6);
+
+        self.status.set_flag(zero, Flags::ZERO);
+        self.status.set_flag(negative, Flags::NEGATIVE);
+        self.status.set_flag(overflow, Flags::OVERFLOW);
+
+        if addressing.mode == Absolute {
+            cycles += 1;
+        }
+        cycles
     }
 
     fn store_register(&mut self, addressing: Addressing, target: u8) -> u8 {
