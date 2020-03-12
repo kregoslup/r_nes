@@ -706,6 +706,15 @@ mod tests {
     }
 
     #[test]
+    fn test_bit_test() {
+        let mut cpu = create_test_cpu(vec![0x2C, 0x04, 0x00, 0b1100_0000]);
+        reset_cpu(&mut cpu);
+        cpu.acc == 0;
+        cpu.evaluate(OpCode::new(0x2C));
+        assert_eq!(cpu.status, Flags::NEGATIVE | Flags::PLACEHOLDER | Flags::OVERFLOW | Flags::ZERO)
+    }
+
+    #[test]
     fn test_indexed_indirect() {
         let mut cpu = create_test_cpu(vec![0x01, 0x03, 0x05, 0x00, 0b1111_1111]);
         reset_cpu(&mut cpu);
