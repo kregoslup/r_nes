@@ -16,7 +16,8 @@ pub enum AddressingMode {
     Absolute,
     AbsoluteIndexed,
     ZeroPageIndexed,
-    Accumulator
+    Accumulator,
+    Indirect
 }
 
 #[derive(PartialEq, Copy, Clone)]
@@ -89,6 +90,15 @@ impl Addressing {
             mode: AddressingMode::Accumulator
         }
     }
+
+    pub fn indirect() -> Addressing {
+        Addressing {
+            register: None,
+            add_cycles: false,
+            mode: AddressingMode::Indirect
+        }
+    }
+
 
     pub fn to_register_specific_addressing(&self) -> Addressing {
         let fixed_addressing_register = match self.register {

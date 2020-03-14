@@ -1,5 +1,7 @@
 use crate::op_code::OpCode;
-use crate::addressing::AddressingMode::{IndexedIndirect, ZeroPage, Immediate, IndirectIndexed, ZeroPageIndexed, Absolute, AbsoluteIndexed, Accumulator};
+use crate::addressing::AddressingMode::{IndexedIndirect, ZeroPage, Immediate, IndirectIndexed,
+                                        ZeroPageIndexed, Absolute, AbsoluteIndexed, Accumulator,
+                                        Indirect};
 use crate::bus::Bus;
 use crate::addressing::{Addressing, AddressingMode, AddressingRegistry};
 use crate::util::{combine_u8, msb, lsb, nth_bit};
@@ -165,6 +167,18 @@ impl Cpu {
         self.indexed_address(addressing)
     }
 
+    fn indirect_address(&mut self, addressing: &Addressing) -> u16 {
+        self.program_counter += 1;
+        let lsb = self.fetch(self.program_counter);
+        self.program_counter += 1;
+        let msb = self.fetch(self.program_counter);
+
+        let real_lsb = self.fetch(combine_u8(lsb, msb));
+        let real_msb = self.fetch(combine_u8(lsb, msb) + 1);
+
+        combine_u8(real_lsb, real_msb)
+    }
+
     fn fetch_address(&mut self, addressing: &Addressing) -> u16 {
         match addressing.mode {
             IndexedIndirect => {
@@ -188,6 +202,9 @@ impl Cpu {
             AbsoluteIndexed => {
                 self.absolute_indexed_address(addressing)
             },
+            Indirect => {
+                self.indirect_address(addressing)
+            }
             // TODO: Improve logging
             _ => panic!("Cannot fetch address with given address mode")
         }
@@ -235,6 +252,8 @@ impl Cpu {
             (0b110, _, 0b10) => self.offset_by_one(addressing, false),
             (0b111, _, 0b10) => self.offset_by_one(addressing, true),
             (0b001, _, 0b00) => self.bit_test(addressing),
+            (0b010, _, 0b00) => self.jump(Addressing::absolute()),
+            (0b011, _, 0b00) => self.jump(Addressing::indirect()),
             _ => panic!("Unknown op code")
         }
     }
@@ -252,6 +271,16 @@ impl Cpu {
 
         if addressing.mode == Absolute {
             cycles += 1;
+        }
+        cycles
+    }
+
+    fn jump(&mut self, addressing: Addressing) -> u8 {
+        let mut cycles = 3;
+        self.program_counter = self.fetch_address(&addressing);
+
+        if addressing.mode == Indirect {
+            cycles += 2;
         }
         cycles
     }
@@ -712,6 +741,22 @@ mod tests {
         cpu.acc == 0;
         cpu.evaluate(OpCode::new(0x2C));
         assert_eq!(cpu.status, Flags::NEGATIVE | Flags::PLACEHOLDER | Flags::OVERFLOW | Flags::ZERO)
+    }
+
+    #[test]
+    fn test_jmp() {
+        let mut cpu = create_test_cpu(vec![0x4C, 0x04, 0x00]);
+        reset_cpu(&mut cpu);
+        cpu.evaluate(OpCode::new(0x4C));
+        assert_eq!(cpu.program_counter, 4)
+    }
+
+    #[test]
+    fn test_jmp_indirect() {
+        let mut cpu = create_test_cpu(vec![0x6C, 0x04, 0x00, 20, 0]);
+        reset_cpu(&mut cpu);
+        cpu.evaluate(OpCode::new(0x6C));
+        assert_eq!(cpu.program_counter, 20)
     }
 
     #[test]
