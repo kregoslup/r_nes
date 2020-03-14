@@ -254,6 +254,8 @@ impl Cpu {
             (0b001, _, 0b00) => self.bit_test(addressing),
             (0b010, _, 0b00) => self.jump(Addressing::absolute()),
             (0b011, _, 0b00) => self.jump(Addressing::indirect()),
+            (0b100, _, 0b00) => self.store_register(addressing, self.reg_y),
+            (0b101, _, 0b00) => self.load_register(addressing, AddressingRegistry::Y),
             _ => panic!("Unknown op code")
         }
     }
@@ -286,7 +288,7 @@ impl Cpu {
     }
 
     fn store_register(&mut self, addressing: Addressing, target: u8) -> u8 {
-        let mut cycles = 2;
+        let mut cycles = 3;
         let fixed_addressing = addressing.to_register_specific_addressing();
         let address = self.fetch_address(&fixed_addressing);
         self.store(target, Some(address));
@@ -715,6 +717,27 @@ mod tests {
         cpu.reg_x = 10;
         cpu.evaluate(OpCode::new(0xB6));
         assert_eq!(cpu.reg_x, 150);
+        assert_eq!(cpu.status, Flags::NEGATIVE | Flags::PLACEHOLDER)
+    }
+
+    //TODO: Add test for ZP, X
+    #[test]
+    fn test_store_register_y() {
+        let mut cpu = create_test_cpu(vec![0x8C, 0x04, 0x00, 0b0000_0000]);
+        reset_cpu(&mut cpu);
+        cpu.reg_y = 10;
+        cpu.evaluate(OpCode::new(0x8C));
+        assert_eq!(cpu.fetch(4), 10);
+    }
+
+    //TODO: Add test for ZP, X
+    #[test]
+    fn test_load_register_y() {
+        let mut cpu = create_test_cpu(vec![0xAC, 0x04, 0x00, 150]);
+        reset_cpu(&mut cpu);
+        cpu.reg_y = 10;
+        cpu.evaluate(OpCode::new(0xAC));
+        assert_eq!(cpu.reg_y, 150);
         assert_eq!(cpu.status, Flags::NEGATIVE | Flags::PLACEHOLDER)
     }
 

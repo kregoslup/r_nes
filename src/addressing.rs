@@ -99,14 +99,14 @@ impl Addressing {
         }
     }
 
-
     pub fn to_register_specific_addressing(&self) -> Addressing {
         let fixed_addressing_register = match self.register {
             Some(register) => {
                 if register == AddressingRegistry::X {
                     Some(AddressingRegistry::Y)
                 } else {
-                    Some(AddressingRegistry::X)
+                    // TODO: Confirm
+                    Some(register)
                 }
             },
             None => None
