@@ -240,7 +240,7 @@ impl Cpu {
             (0b010, _, 0b1) => self.bitwise_instruction(addressing, BitXor::bitxor, true),
             (0b011, _, 0b1) => self.add_with_carry(addressing),
             (0b111, _, 0b1) => self.sub_with_borrow(addressing),
-            (0b110, _, 0b1) => self.compare(addressing),
+            (0b110, _, 0b1) => self.compare(addressing, self.acc),
             (0b100, _, 0b1) => self.store_accumulator(addressing),
             (0b101, _, 0b1) => self.load_accumulator(addressing),
             (0b000, _, 0b10) => self.shift_left(addressing),
@@ -256,6 +256,8 @@ impl Cpu {
             (0b011, _, 0b00) => self.jump(Addressing::indirect()),
             (0b100, _, 0b00) => self.store_register(addressing, self.reg_y),
             (0b101, _, 0b00) => self.load_register(addressing, AddressingRegistry::Y),
+            (0b110, _, 0b00) => self.compare(addressing, self.reg_y),
+            (0b111, _, 0b00) => self.compare(addressing, self.reg_x),
             _ => panic!("Unknown op code")
         }
     }
@@ -426,13 +428,13 @@ impl Cpu {
         (((lhs.bitxor(result)) & (rhs.bitxor(result))) & 0x80) != 0
     }
 
-    fn compare(&mut self, addressing: Addressing) -> u8 {
+    fn compare(&mut self, addressing: Addressing, target: u8) -> u8 {
         let mut cycles = 2;
         let (value, _) = self.fetch_with_addressing_mode(&addressing);
-        let mut result = (Wrapping(self.acc) - Wrapping(value)).0;
-        let carry = result <= self.acc;
+        let mut result = (Wrapping(target) - Wrapping(value)).0;
+        let carry = value <= target;
         let zero = result == 0;
-        let negative = result > self.acc;
+        let negative = msb(result) == 1;
         self.status.set_flag(negative, Flags::NEGATIVE);
         self.status.set_flag(carry, Flags::CARRY);
         self.status.set_flag(zero, Flags::ZERO);
@@ -635,6 +637,20 @@ mod tests {
         reset_cpu(&mut cpu);
         cpu.acc = 10;
         cpu.evaluate(OpCode::new(0xC1));
+        assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::NEGATIVE);
+
+        // cpy
+        let mut cpu = create_test_cpu(vec![0xCC, 0x04, 0x00, 11]);
+        reset_cpu(&mut cpu);
+        cpu.reg_y = 10;
+        cpu.evaluate(OpCode::new(0xCC));
+        assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::NEGATIVE);
+
+        //cpx
+        let mut cpu = create_test_cpu(vec![0xCC, 0x04, 0x00, 11]);
+        reset_cpu(&mut cpu);
+        cpu.reg_x = 10;
+        cpu.evaluate(OpCode::new(0xCC));
         assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::NEGATIVE);
     }
 
