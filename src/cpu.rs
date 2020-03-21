@@ -235,6 +235,7 @@ impl Cpu {
         let addressing = Addressing::from_op_code(op_code.mid_op_code(), op_code.lower_op_code());
         println!("Evaluating op code, hex: {:#02X}, bin: {:#08b}", op_code.value, op_code.value);
         match (op_code.upper_op_code(), op_code.mid_op_code(), op_code.lower_op_code()) {
+            (upper_op_code, 0b100, 0b000) => self.branch(addressing, upper_op_code),
             (0b000, _, 0b1) => self.bitwise_instruction(addressing, BitOr::bitor, false),
             (0b001, _, 0b1) => self.bitwise_instruction(addressing, BitAnd::bitand, true),
             (0b010, _, 0b1) => self.bitwise_instruction(addressing, BitXor::bitxor, true),
@@ -259,6 +260,17 @@ impl Cpu {
             (0b110, _, 0b00) => self.compare(addressing, self.reg_y),
             (0b111, _, 0b00) => self.compare(addressing, self.reg_x),
             _ => panic!("Unknown op code")
+        }
+    }
+
+    fn branch(&mut self, addressing: Addressing, branch_instruction: u8) -> u8 {
+        let branch_flag = branch_instruction.extract_branch_flag();
+        let branch_equality = branch_instruction.extract_branch_equality();
+        match branch_flag {
+            0b00 => self.branch_negative(addressing, branch_equality),
+            0b01 => self.branch_overflow(addressing, branch_equality),
+            0b10 => self.branch_carry(addressing, branch_equality),
+            0b11 => self.branch_zero(addressing, branch_equality),
         }
     }
 
