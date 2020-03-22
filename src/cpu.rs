@@ -299,7 +299,7 @@ impl Cpu {
             self.program_counter += branch_offset as u16;
             succeeded = true;
         };
-        (succeeded, false)
+        (succeeded, self.is_on_different_page(self.program_counter, self.program_counter + 1))
     }
 
     fn bit_test(&mut self, addressing: Addressing) -> u8 {
@@ -540,6 +540,12 @@ impl Cpu {
 
     fn page_boundary_crossed(&self, value: u8) -> bool {
         value > 0x00FF
+    }
+
+    fn is_on_different_page(&self, lhs: u16, rhs: u16) -> bool {
+        let lhs_page = lhs % 255;
+        let rhs_page = rhs % 255;
+        lhs == rhs
     }
 
     fn get_borrow(&mut self) -> u16 {
