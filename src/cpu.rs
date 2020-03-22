@@ -1,7 +1,7 @@
 use crate::op_code::OpCode;
 use crate::addressing::AddressingMode::{IndexedIndirect, ZeroPage, Immediate, IndirectIndexed,
                                         ZeroPageIndexed, Absolute, AbsoluteIndexed, Accumulator,
-                                        Indirect};
+                                        Indirect, Relative};
 use crate::bus::Bus;
 use crate::addressing::{Addressing, AddressingMode, AddressingRegistry};
 use crate::util::{combine_u8, msb, lsb, nth_bit};
@@ -179,6 +179,11 @@ impl Cpu {
         combine_u8(real_lsb, real_msb)
     }
 
+    fn relative(&mut self, addressing: &Addressing) -> u16 {
+        self.program_counter += 1;
+        self.program_counter
+    }
+
     fn fetch_address(&mut self, addressing: &Addressing) -> u16 {
         match addressing.mode {
             IndexedIndirect => {
@@ -204,7 +209,10 @@ impl Cpu {
             },
             Indirect => {
                 self.indirect_address(addressing)
-            }
+            },
+            Relative => {
+                self.relative(addressing)
+            },
             // TODO: Improve logging
             _ => panic!("Cannot fetch address with given address mode")
         }
@@ -235,7 +243,7 @@ impl Cpu {
         let addressing = Addressing::from_op_code(op_code.mid_op_code(), op_code.lower_op_code());
         println!("Evaluating op code, hex: {:#02X}, bin: {:#08b}", op_code.value, op_code.value);
         match (op_code.upper_op_code(), op_code.mid_op_code(), op_code.lower_op_code()) {
-            (upper_op_code, 0b100, 0b000) => self.branch(addressing, upper_op_code),
+            (upper_op_code, 0b100, 0b000) => self.branch(Addressing::relative(), upper_op_code),
             (0b000, _, 0b1) => self.bitwise_instruction(addressing, BitOr::bitor, false),
             (0b001, _, 0b1) => self.bitwise_instruction(addressing, BitAnd::bitand, true),
             (0b010, _, 0b1) => self.bitwise_instruction(addressing, BitXor::bitxor, true),
@@ -264,14 +272,34 @@ impl Cpu {
     }
 
     fn branch(&mut self, addressing: Addressing, branch_instruction: u8) -> u8 {
+        let mut cycles = 2;
         let branch_flag = branch_instruction.extract_branch_flag();
         let branch_equality = branch_instruction.extract_branch_equality();
-        match branch_flag {
+        let (succeeded, new_page) = match branch_flag {
             0b00 => self.branch_negative(addressing, branch_equality),
             0b01 => self.branch_overflow(addressing, branch_equality),
             0b10 => self.branch_carry(addressing, branch_equality),
             0b11 => self.branch_zero(addressing, branch_equality),
+        };
+        if succeeded {
+            cycles += 1;
         }
+        if new_page {
+            cycles += 1;
+        }
+        cycles
+    }
+
+    fn branch_negative(&mut self, addressing: Addressing, branch_equality: u8) -> (bool, bool) {
+        let mut succeeded = false;
+        let (raw_branch_offset, _) = self.fetch_with_addressing_mode(&addressing);
+        let branch_offset = raw_branch_offset as i8;
+        let negative = self.status.contains(Flags::NEGATIVE);
+        if (branch_equality && negative) | (!branch_equality & !negative) {
+            self.program_counter += branch_offset as u16;
+            succeeded = true;
+        };
+        (succeeded, false)
     }
 
     fn bit_test(&mut self, addressing: Addressing) -> u8 {

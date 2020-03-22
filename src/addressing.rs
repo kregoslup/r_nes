@@ -17,7 +17,8 @@ pub enum AddressingMode {
     AbsoluteIndexed,
     ZeroPageIndexed,
     Accumulator,
-    Indirect
+    Indirect,
+    Relative
 }
 
 #[derive(PartialEq, Copy, Clone)]
@@ -96,6 +97,14 @@ impl Addressing {
             register: None,
             add_cycles: false,
             mode: AddressingMode::Indirect
+        }
+    }
+
+    pub fn relative() -> Addressing {
+        Addressing {
+            register: None,
+            add_cycles: false,
+            mode: AddressingMode::Relative
         }
     }
 
