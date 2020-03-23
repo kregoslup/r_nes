@@ -276,10 +276,10 @@ impl Cpu {
         let branch_flag = branch_instruction.extract_branch_flag();
         let branch_equality = branch_instruction.extract_branch_equality();
         let (succeeded, new_page) = match branch_flag {
-            0b00 => self.branch_negative(addressing, branch_equality),
-            0b01 => self.branch_overflow(addressing, branch_equality),
-            0b10 => self.branch_carry(addressing, branch_equality),
-            0b11 => self.branch_zero(addressing, branch_equality),
+            0b00 => self.branch_on_flag(addressing, branch_equality, Flags::NEGATIVE),
+            0b01 => self.branch_overflow(addressing, branch_equality, Flags::OVERFLOW),
+            0b10 => self.branch_carry(addressing, branch_equality, Flags::CARRY),
+            0b11 => self.branch_zero(addressing, branch_equality, Flags::ZERO),
         };
         if succeeded {
             cycles += 1;
@@ -290,12 +290,12 @@ impl Cpu {
         cycles
     }
 
-    fn branch_negative(&mut self, addressing: Addressing, branch_equality: u8) -> (bool, bool) {
+    fn branch_on_flag(&mut self, addressing: Addressing, branch_equality: u8, flag: Flags) -> (bool, bool) {
         let mut succeeded = false;
         let (raw_branch_offset, _) = self.fetch_with_addressing_mode(&addressing);
         let branch_offset = raw_branch_offset as i8;
-        let negative = self.status.contains(Flags::NEGATIVE);
-        if (branch_equality && negative) | (!branch_equality & !negative) {
+        let flag = self.status.contains(flag);
+        if (branch_equality && flag) | (!branch_equality & !flag) {
             self.program_counter += branch_offset as u16;
             succeeded = true;
         };
