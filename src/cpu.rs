@@ -277,9 +277,9 @@ impl Cpu {
         let branch_equality = branch_instruction.extract_branch_equality();
         let (succeeded, new_page) = match branch_flag {
             0b00 => self.branch_on_flag(addressing, branch_equality, Flags::NEGATIVE),
-            0b01 => self.branch_overflow(addressing, branch_equality, Flags::OVERFLOW),
-            0b10 => self.branch_carry(addressing, branch_equality, Flags::CARRY),
-            0b11 => self.branch_zero(addressing, branch_equality, Flags::ZERO),
+            0b01 => self.branch_on_flag(addressing, branch_equality, Flags::OVERFLOW),
+            0b10 => self.branch_on_flag(addressing, branch_equality, Flags::CARRY),
+            0b11 => self.branch_on_flag(addressing, branch_equality, Flags::ZERO),
         };
         if succeeded {
             cycles += 1;
@@ -295,7 +295,7 @@ impl Cpu {
         let (raw_branch_offset, _) = self.fetch_with_addressing_mode(&addressing);
         let branch_offset = raw_branch_offset as i8;
         let flag = self.status.contains(flag);
-        if (branch_equality && flag) | (!branch_equality & !flag) {
+        if ((branch_equality == 1) && flag) | (!(branch_equality == 1) & !flag) {
             self.program_counter += branch_offset as u16;
             succeeded = true;
         };
@@ -841,6 +841,14 @@ mod tests {
         let mut cpu = create_test_cpu(vec![0x6C, 0x04, 0x00, 20, 0]);
         reset_cpu(&mut cpu);
         cpu.evaluate(OpCode::new(0x6C));
+        assert_eq!(cpu.program_counter, 20)
+    }
+
+    #[test]
+    fn test_branch_on_flag() {
+        let mut cpu = create_test_cpu(vec![0x30, 0x04, 0x00, 20, 0]);
+        reset_cpu(&mut cpu);
+        cpu.evaluate(OpCode::new(0x30));
         assert_eq!(cpu.program_counter, 20)
     }
 
