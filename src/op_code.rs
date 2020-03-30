@@ -23,22 +23,6 @@ impl OpCode {
     }
 }
 
-trait BranchOperation {
-    fn extract_branch_flag(&self) -> Self;
-
-    fn extract_branch_equality(&self) -> Self;
-}
-
-impl BranchOperation for u8 {
-    fn extract_branch_flag(&self) -> Self {
-        unimplemented!()
-    }
-
-    fn extract_branch_equality(&self) -> Self {
-        unimplemented!()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
