@@ -243,7 +243,7 @@ impl Cpu {
         let addressing = Addressing::from_op_code(op_code.mid_op_code(), op_code.lower_op_code());
         println!("Evaluating op code, hex: {:#02X}, bin: {:#08b}", op_code.value, op_code.value);
         match (op_code.upper_op_code(), op_code.mid_op_code(), op_code.lower_op_code()) {
-            (upper_op_code, 0b100, 0b000) => self.branch(Addressing::relative(), upper_op_code),
+            (upper_op_code, 0b100, 0b000) => self.branch(addressing, upper_op_code),
             (0b000, _, 0b1) => self.bitwise_instruction(addressing, BitOr::bitor, false),
             (0b001, _, 0b1) => self.bitwise_instruction(addressing, BitAnd::bitand, true),
             (0b010, _, 0b1) => self.bitwise_instruction(addressing, BitXor::bitxor, true),
@@ -272,6 +272,7 @@ impl Cpu {
     }
 
     fn branch(&mut self, addressing: Addressing, branch_instruction: u8) -> u8 {
+        println!("Branching...");
         let mut cycles = 2;
         let branch_flag = self.extract_branch_flag(branch_instruction);
         let branch_equality = self.extract_branch_equality(branch_instruction);
@@ -292,9 +293,9 @@ impl Cpu {
     }
 
     fn extract_branch_flag(&mut self, branch_instruction: u8) -> u8 {
-        let higher_bit = nth_bit(branch_instruction, 1);
-        let lower_bit = nth_bit(branch_instruction, 2);
-        (1 << higher_bit as u8).bit_or(lower_bit)
+        let higher_bit = nth_bit(branch_instruction, 1) as u8;
+        let lower_bit = nth_bit(branch_instruction, 2) as u8;
+        ((1 << higher_bit) as u8) | lower_bit
     }
 
     fn extract_branch_equality(&mut self, branch_instruction: u8) -> bool {
@@ -305,6 +306,7 @@ impl Cpu {
         let mut succeeded = false;
         let (raw_branch_offset, _) = self.fetch_with_addressing_mode(&addressing);
         let branch_offset = raw_branch_offset as i8;
+        println!("Branch offset: {}", branch_offset);
         let flag = self.status.contains(flag);
         if (branch_equality && flag) | (!branch_equality & !flag) {
             self.program_counter += branch_offset as u16;
@@ -859,8 +861,9 @@ mod tests {
     fn test_branch_on_flag() {
         let mut cpu = create_test_cpu(vec![0x30, 0x04, 0x00, 20, 0]);
         reset_cpu(&mut cpu);
+        cpu.status = Flags::PLACEHOLDER | Flags::NEGATIVE;
         cpu.evaluate(OpCode::new(0x30));
-        assert_eq!(cpu.program_counter, 20)
+        assert_eq!(cpu.program_counter, 6)
     }
 
     #[test]

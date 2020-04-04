@@ -152,6 +152,7 @@ impl Addressing {
             (0b011, 0b00) => Addressing::absolute(),
             (0b101, 0b00) => Addressing::zero_page_indexed(Some(AddressingRegistry::X), false),
             (0b111, 0b00) => Addressing::absolute_indexed(Some(AddressingRegistry::X), false),
+            (_, 0b0) => Addressing::relative(),
             _ => panic!("Unknown addressing type")
         }
     }
