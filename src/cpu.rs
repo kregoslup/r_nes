@@ -54,7 +54,7 @@ impl Flags {
 impl Cpu {
     pub fn new(bus: Bus) -> Cpu {
         Cpu {
-            stack_pointer: 0,
+            stack_pointer: 0xff,
             program_counter: 1,
             acc: 0,
             reg_x: 0,
