@@ -242,6 +242,13 @@ impl Cpu {
     pub fn evaluate(&mut self, op_code: OpCode) -> u8 {
         let addressing = Addressing::from_op_code(op_code.mid_op_code(), op_code.lower_op_code());
         println!("Evaluating op code, hex: {:#02X}, bin: {:#08b}", op_code.value, op_code.value);
+        match op_code.value {
+            0b0 => self.force_break(),
+            _ => self.decode_op_code(op_code)
+        }
+    }
+
+    fn decode_op_code(&mut self, op_code: OpCode) -> u8 {
         match (op_code.upper_op_code(), op_code.mid_op_code(), op_code.lower_op_code()) {
             (upper_op_code, 0b100, 0b000) => self.branch(addressing, upper_op_code),
             (0b000, _, 0b1) => self.bitwise_instruction(addressing, BitOr::bitor, false),
@@ -447,9 +454,10 @@ impl Cpu {
     }
 
     fn force_break(&mut self) -> u8 {
-        println!("BRK op code");
-        let cycles = 7;
         self.program_counter += 1;
+        self.status.set_flag(true, Flags::BRK);
+        self.push_on_stack(self.pc);
+        self.push_on_stack(self.status);
         cycles
     }
 
