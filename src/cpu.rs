@@ -51,6 +51,12 @@ impl Flags {
     }
 }
 
+impl From<u8> for Flags {
+    fn from(item: u8) -> Self {
+        Flags::from_bits(item)
+    }
+}
+
 impl Cpu {
     pub fn new(bus: Bus) -> Cpu {
         Cpu {
@@ -454,11 +460,27 @@ impl Cpu {
     }
 
     fn force_break(&mut self) -> u8 {
+        let cycles = 7;
         self.program_counter += 1;
         self.status.set_flag(true, Flags::BRK);
-        self.push_on_stack(self.pc);
-        self.push_on_stack(self.status);
+        self.status.set_flag(true, Flags::IRQ_DIS);
+        self.push_status_on_stack();
+
+        let msb = self.fetch(0xFFFE);
+        let lsb = self.fetch(0xFFFF);
+        self.program_counter = combine_u8(lsb, msb);
         cycles
+    }
+
+    fn push_status_on_stack(&mut self) {
+        self.push_on_stack((self.program_counter >> 8) as u8);
+        self.push_on_stack(self.program_counter as u8);
+        self.push_on_stack(u8::from(self.status));
+    }
+
+    fn push_on_stack(&mut self, value: u8) {
+        self.store(value, Some(self.stack_pointer as u16));
+        self.stack_pointer -= 1;
     }
 
     fn store_accumulator(&mut self, addressing: Addressing) -> u8 {
