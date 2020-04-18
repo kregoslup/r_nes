@@ -469,6 +469,7 @@ impl Cpu {
         let msb = self.fetch(0xFFFE);
         let lsb = self.fetch(0xFFFF);
         self.program_counter = combine_u8(lsb, msb);
+        // TODO: Turn off IRQ_DIS flag?
         cycles
     }
 
@@ -893,6 +894,14 @@ mod tests {
         reset_cpu(&mut cpu);
         cpu.status = Flags::PLACEHOLDER | Flags::NEGATIVE;
         cpu.evaluate(OpCode::new(0x30));
+        assert_eq!(cpu.program_counter, 6)
+    }
+
+    #[test]
+    fn test_break() {
+        let mut cpu = create_test_cpu(vec![0x00]);
+        reset_cpu(&mut cpu);
+        cpu.evaluate(OpCode::new(0x00));
         assert_eq!(cpu.program_counter, 6)
     }
 
