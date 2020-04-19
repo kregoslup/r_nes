@@ -51,9 +51,9 @@ impl Flags {
     }
 }
 
-impl From<u8> for Flags {
-    fn from(item: u8) -> Self {
-        Flags::from_bits(item)
+impl From<Flags> for u8 {
+    fn from(flag: Flags) -> Self {
+        flag.bits()
     }
 }
 
@@ -246,7 +246,6 @@ impl Cpu {
 
     // Returns cycles
     pub fn evaluate(&mut self, op_code: OpCode) -> u8 {
-        let addressing = Addressing::from_op_code(op_code.mid_op_code(), op_code.lower_op_code());
         println!("Evaluating op code, hex: {:#02X}, bin: {:#08b}", op_code.value, op_code.value);
         match op_code.value {
             0b0 => self.force_break(),
@@ -255,6 +254,7 @@ impl Cpu {
     }
 
     fn decode_op_code(&mut self, op_code: OpCode) -> u8 {
+        let addressing = Addressing::from_op_code(op_code.mid_op_code(), op_code.lower_op_code());
         match (op_code.upper_op_code(), op_code.mid_op_code(), op_code.lower_op_code()) {
             (upper_op_code, 0b100, 0b000) => self.branch(addressing, upper_op_code),
             (0b000, _, 0b1) => self.bitwise_instruction(addressing, BitOr::bitor, false),
@@ -468,6 +468,8 @@ impl Cpu {
 
         let msb = self.fetch(0xFFFE);
         let lsb = self.fetch(0xFFFF);
+        println!("{}", msb);
+        println!("{}", lsb);
         self.program_counter = combine_u8(lsb, msb);
         // TODO: Turn off IRQ_DIS flag?
         cycles
@@ -899,10 +901,16 @@ mod tests {
 
     #[test]
     fn test_break() {
-        let mut cpu = create_test_cpu(vec![0x00]);
+        let len = 0x10000;
+        let mut memory = vec![0; len];
+        // TODO: Fix off by one in tests
+        memory[0xFFFD] = 0x44;
+        memory[0xFFFE] = 0x66;
+        let mut cpu = create_test_cpu(memory);
         reset_cpu(&mut cpu);
         cpu.evaluate(OpCode::new(0x00));
-        assert_eq!(cpu.program_counter, 6)
+        assert_eq!(cpu.program_counter, 0x4466);
+        assert_eq!(cpu.status, Flags::BRK | Flags::PLACEHOLDER | Flags::IRQ_DIS)
     }
 
     #[test]
