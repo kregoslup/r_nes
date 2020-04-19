@@ -468,10 +468,8 @@ impl Cpu {
 
         let msb = self.fetch(0xFFFE);
         let lsb = self.fetch(0xFFFF);
-        println!("{}", msb);
-        println!("{}", lsb);
         self.program_counter = combine_u8(lsb, msb);
-        // TODO: Turn off IRQ_DIS flag?
+        self.status.set_flag(false, Flags::BRK);
         cycles
     }
 
@@ -910,7 +908,13 @@ mod tests {
         reset_cpu(&mut cpu);
         cpu.evaluate(OpCode::new(0x00));
         assert_eq!(cpu.program_counter, 0x4466);
-        assert_eq!(cpu.status, Flags::BRK | Flags::PLACEHOLDER | Flags::IRQ_DIS)
+        assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::IRQ_DIS);
+
+        // TODO: Fix INTO trait
+        assert_eq!(
+            Flags::from_bits(cpu.fetch((cpu.stack_pointer + 1) as u16)).unwrap(),
+            Flags::IRQ_DIS | Flags::BRK | Flags::PLACEHOLDER
+        )
     }
 
     #[test]
