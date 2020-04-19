@@ -57,6 +57,12 @@ impl From<Flags> for u8 {
     }
 }
 
+impl From<u8> for Flags {
+    fn from(item: u8) -> Self {
+        Flags::from_bits_truncate(item)
+    }
+}
+
 impl Cpu {
     pub fn new(bus: Bus) -> Cpu {
         Cpu {
@@ -906,15 +912,21 @@ mod tests {
         memory[0xFFFE] = 0x66;
         let mut cpu = create_test_cpu(memory);
         reset_cpu(&mut cpu);
+        cpu.program_counter = 0x1234;
         cpu.evaluate(OpCode::new(0x00));
         assert_eq!(cpu.program_counter, 0x4466);
         assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::IRQ_DIS);
 
+        let stored_flags: Flags = cpu.fetch((cpu.stack_pointer + 1) as u16).into();
         // TODO: Fix INTO trait
         assert_eq!(
-            Flags::from_bits(cpu.fetch((cpu.stack_pointer + 1) as u16)).unwrap(),
+            stored_flags,
             Flags::IRQ_DIS | Flags::BRK | Flags::PLACEHOLDER
-        )
+        );
+
+        let lsb_stored_program_counter =  cpu.fetch((cpu.stack_pointer + 2) as u16);
+        let msb_stored_program_counter =  cpu.fetch((cpu.stack_pointer + 3) as u16);
+        assert_eq!(combine_u8(lsb_stored_program_counter, msb_stored_program_counter), 0x1235)
     }
 
     #[test]
