@@ -254,7 +254,8 @@ impl Cpu {
     pub fn evaluate(&mut self, op_code: OpCode) -> u8 {
         println!("Evaluating op code, hex: {:#02X}, bin: {:#08b}", op_code.value, op_code.value);
         match op_code.value {
-            0b0 => self.force_break(),
+            0x00 => self.force_break(),
+            0x20 => self.jump_to_subroutine(Addressing::absolute()),
             _ => self.decode_op_code(op_code)
         }
     }
@@ -358,6 +359,15 @@ impl Cpu {
         if addressing.mode == Indirect {
             cycles += 2;
         }
+        cycles
+    }
+
+    fn jump_to_subroutine(&mut self, addressing: Addressing) -> u8 {
+        let mut cycles = 6;
+        let new_pc = self.fetch_address(&addressing);
+        self.program_counter -= 3;
+        self.push_program_counter_on_stack();
+        self.program_counter = new_pc;
         cycles
     }
 
@@ -480,9 +490,13 @@ impl Cpu {
     }
 
     fn push_status_on_stack(&mut self) {
+        self.push_program_counter_on_stack();
+        self.push_on_stack(u8::from(self.status));
+    }
+
+    fn push_program_counter_on_stack(&mut self) {
         self.push_on_stack((self.program_counter >> 8) as u8);
         self.push_on_stack(self.program_counter as u8);
-        self.push_on_stack(u8::from(self.status));
     }
 
     fn push_on_stack(&mut self, value: u8) {
@@ -927,6 +941,26 @@ mod tests {
         let lsb_stored_program_counter =  cpu.fetch((cpu.stack_pointer + 2) as u16);
         let msb_stored_program_counter =  cpu.fetch((cpu.stack_pointer + 3) as u16);
         assert_eq!(combine_u8(lsb_stored_program_counter, msb_stored_program_counter), 0x1235)
+    }
+
+    #[test]
+    fn test_jsr() {
+        let len = 0xFFFF;
+        let mut memory = vec![0; len];
+        memory[0] = 0x60;
+        memory[1] = 0x20;
+        memory[3] = 0x03;
+
+        let mut cpu = create_test_cpu(memory);
+        reset_cpu(&mut cpu);
+        cpu.program_counter = 3;
+        cpu.evaluate(OpCode::new(0x20));
+        assert_eq!(cpu.program_counter, 0x03);
+
+        let lsb_stored_program_counter =  cpu.fetch((cpu.stack_pointer + 1) as u16);
+        let msb_stored_program_counter =  cpu.fetch((cpu.stack_pointer + 2) as u16);
+        assert_eq!(combine_u8(lsb_stored_program_counter, msb_stored_program_counter), 2)
+
     }
 
     #[test]
