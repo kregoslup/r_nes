@@ -407,7 +407,9 @@ impl Cpu {
             self.status = self.read_flags_from_stack();
         }
         let mut new_pc = self.read_pc_from_stack();
-        if read_flags {
+        println!("{:#06x}", self.stack_pointer);
+        println!("{:#06x}", new_pc);
+        if !read_flags {
             new_pc -= 1;
         }
         self.program_counter = new_pc;
@@ -991,16 +993,27 @@ mod tests {
 
     #[test]
     fn test_rti() {
-        let mut cpu = create_test_cpu(vec![0x01, 0x03, 0x05, 0x00, 0b1111_1111]);
+        let len = 0x10000;
+        let mut memory = vec![0; len];
+        let flags_on_stack = Flags::NEGATIVE | Flags::PLACEHOLDER | Flags::OVERFLOW;
+        memory[0] = 0x40;
+        memory[0x00FD] = 0x44;
+        memory[0x00FE] = 0x66;
+        memory[0x00FC] = flags_on_stack.bits();
+
+        let mut cpu = create_test_cpu(memory);
         reset_cpu(&mut cpu);
-        cpu.evaluate(OpCode::new(0x01));
-        assert_eq!(cpu.acc, 0b1111_1111);
-        assert_eq!(cpu.status, Flags::NEGATIVE | Flags::PLACEHOLDER)
+        cpu.stack_pointer -= 3;
+        cpu.program_counter = 2;
+
+        cpu.evaluate(OpCode::new(0x40));
+        assert_eq!(cpu.program_counter, 0x4466);
+        assert_eq!(cpu.status, flags_on_stack)
     }
 
     #[test]
     fn test_rts() {
-        let mut cpu = create_test_cpu(vec![0x01, 0x03, 0x05, 0x00, 0b1111_1111]);
+        let mut cpu = create_test_cpu(vec![0x60, 0x03, 0x05, 0x00, 0b1111_1111]);
         reset_cpu(&mut cpu);
         cpu.evaluate(OpCode::new(0x01));
         assert_eq!(cpu.acc, 0b1111_1111);
