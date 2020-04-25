@@ -250,9 +250,13 @@ impl Cpu {
         }
     }
 
+    fn push_flags_on_stack(&mut self) {
+        self.push_on_stack(u8::from(self.status));
+    }
+
     fn push_status_on_stack(&mut self) {
         self.push_program_counter_on_stack();
-        self.push_on_stack(u8::from(self.status));
+        self.push_flags_on_stack();
     }
 
     fn push_program_counter_on_stack(&mut self) {
@@ -283,6 +287,8 @@ impl Cpu {
         println!("Evaluating op code, hex: {:#02X}, bin: {:#08b}", op_code.value, op_code.value);
         match op_code.value {
             0x00 => self.force_break(),
+            0x08 => self.push_processor_status(),
+            0x28 => self.pull_processor_status(),
             0x40 => self.return_from(true),
             0x60 => self.return_from(false),
             0x20 => self.jump_to_subroutine(Addressing::absolute()),
@@ -319,6 +325,18 @@ impl Cpu {
             (0b111, _, 0b00) => self.compare(addressing, self.reg_x),
             _ => panic!("Unknown op code")
         }
+    }
+
+    fn push_processor_status(&mut self) -> u8 {
+        let cycles = 3;
+        self.push_flags_on_stack();
+        cycles
+    }
+
+    fn pull_processor_status(&mut self) -> u8 {
+        let cycles = 3;
+        self.status = self.read_flags_from_stack();
+        cycles
     }
 
     fn branch(&mut self, addressing: Addressing, branch_instruction: u8) -> u8 {
@@ -1025,6 +1043,21 @@ mod tests {
 
         cpu.evaluate(OpCode::new(0x60));
         assert_eq!(cpu.program_counter, 0x4465);
+    }
+
+    #[test]
+    fn test_php() {
+        let len = 0x10000;
+        let mut memory = vec![0; len];
+
+        let mut cpu = create_test_cpu(memory);
+        reset_cpu(&mut cpu);
+        let current_flags = Flags::NEGATIVE | Flags::PLACEHOLDER | Flags::OVERFLOW;
+        cpu.status = current_flags;
+        cpu.evaluate(OpCode::new(0x08));
+
+        let stored_flags: Flags = cpu.fetch((cpu.stack_pointer + 1) as u16).into();
+        assert_eq!(stored_flags, current_flags)
     }
 
     #[test]
