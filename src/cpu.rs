@@ -271,15 +271,20 @@ impl Cpu {
 
     fn read_flags_from_stack(&mut self) -> Flags {
         self.stack_pointer += 1;
-        self.fetch(self.stack_pointer as u16).into()
+        self.pull_from_stack().into()
     }
 
     fn read_pc_from_stack(&mut self) -> u16 {
         self.stack_pointer += 1;
-        let lsb =  self.fetch(self.stack_pointer as u16);
+        let lsb =  self.pull_from_stack();
         self.stack_pointer += 1;
-        let msb =  self.fetch(self.stack_pointer as u16);
+        let msb =  self.pull_from_stack();
         combine_u8(lsb, msb)
+    }
+    
+    fn pull_from_stack(&mut self) -> u8 {
+        self.stack_pointer += 1;
+        self.fetch(self.stack_pointer as u16)
     }
 
     // Returns cycles
@@ -289,6 +294,8 @@ impl Cpu {
             0x00 => self.force_break(),
             0x08 => self.push_processor_status(),
             0x28 => self.pull_processor_status(),
+            0x48 => self.push_accumulator(),
+            0x68 => self.pull_accumulator(),
             0x40 => self.return_from(true),
             0x60 => self.return_from(false),
             0x20 => self.jump_to_subroutine(Addressing::absolute()),
@@ -325,6 +332,20 @@ impl Cpu {
             (0b111, _, 0b00) => self.compare(addressing, self.reg_x),
             _ => panic!("Unknown op code")
         }
+    }
+
+    fn push_accumulator(&mut self) -> u8 {
+        let cycles = 3;
+        self.push_on_stack(self.acc);
+        cycles
+    }
+
+    fn pull_accumulator(&mut self) -> u8 {
+        let cycles = 3;
+        self.acc = self.pull_from_stack();
+        self.set_zero(self.acc as u16);
+        self.set_negative(self.acc as u16);
+        cycles
     }
 
     fn push_processor_status(&mut self) -> u8 {
@@ -1074,6 +1095,33 @@ mod tests {
         cpu.evaluate(OpCode::new(0x28));
 
         assert_eq!(cpu.status, stored_flags)
+    }
+
+    #[test]
+    fn test_push_acc() {
+        let len = 0x10000;
+        let mut memory = vec![0; len];
+        let mut cpu = create_test_cpu(memory);
+        reset_cpu(&mut cpu);
+        cpu.acc = 20;
+        cpu.evaluate(OpCode::new(0x48));
+
+        let stored_acc = cpu.fetch(((cpu.stack_pointer + 1) as u16));
+        assert_eq!(cpu.acc, stored_acc)
+    }
+
+    #[test]
+    fn test_pull_acc() {
+        let len = 0x10000;
+        let mut memory = vec![0; len];
+        let acc = 20;
+        memory[0x00FE] = acc;
+        let mut cpu = create_test_cpu(memory);
+        reset_cpu(&mut cpu);
+        cpu.stack_pointer -= 1;
+        cpu.evaluate(OpCode::new(0x68));
+
+        assert_eq!(cpu.acc, acc)
     }
 
     #[test]
