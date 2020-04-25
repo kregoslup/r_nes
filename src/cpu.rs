@@ -1061,6 +1061,22 @@ mod tests {
     }
 
     #[test]
+    fn test_plp() {
+        let len = 0x10000;
+        let mut memory = vec![0; len];
+        let stored_flags = Flags::NEGATIVE | Flags::PLACEHOLDER | Flags::OVERFLOW;
+        memory[0x00FE] = stored_flags.bits();
+
+        let mut cpu = create_test_cpu(memory);
+        reset_cpu(&mut cpu);
+        cpu.stack_pointer -= 1;
+
+        cpu.evaluate(OpCode::new(0x28));
+
+        assert_eq!(cpu.status, stored_flags)
+    }
+
+    #[test]
     fn test_indexed_indirect() {
         let mut cpu = create_test_cpu(vec![0x01, 0x03, 0x05, 0x00, 0b1111_1111]);
         reset_cpu(&mut cpu);
