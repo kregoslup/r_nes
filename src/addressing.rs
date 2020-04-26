@@ -18,7 +18,8 @@ pub enum AddressingMode {
     ZeroPageIndexed,
     Accumulator,
     Indirect,
-    Relative
+    Relative,
+    Implied,
 }
 
 #[derive(PartialEq, Copy, Clone)]
@@ -52,9 +53,9 @@ impl Addressing {
         }
     }
 
-    pub fn immediate() -> Addressing {
+    pub fn immediate(addressing_registry: Option<AddressingRegistry>) -> Addressing {
         Addressing {
-            register: None,
+            register: addressing_registry,
             add_cycles: true,
             mode: AddressingMode::Immediate
         }
@@ -133,21 +134,21 @@ impl Addressing {
             // c == 0b10
             (0b0, 0b01) => Addressing::indexed_indirect(),
             (0b001, 0b01) => Addressing::zero_page(),
-            (0b010, 0b01) => Addressing::immediate(),
+            (0b010, 0b01) => Addressing::immediate(None),
             (0b011, 0b01) => Addressing::absolute(),
             (0b100, 0b01) => Addressing::indirect_indexed(),
             (0b101, 0b01) => Addressing::zero_page_indexed(Some(AddressingRegistry::X), false),
             (0b110, 0b01) => Addressing::absolute_indexed(Some(AddressingRegistry::Y), true),
             (0b111, 0b01) => Addressing::absolute_indexed(Some(AddressingRegistry::X), false),
             // c == 0b10
-            (0b000, 0b10) => Addressing::immediate(),
+            (0b000, 0b10) => Addressing::immediate(None),
             (0b001, 0b10) => Addressing::zero_page(),
             (0b010, 0b10) => Addressing::accumulator(),
             (0b011, 0b10) => Addressing::absolute(),
             (0b101, 0b10) => Addressing::zero_page_indexed(Some(AddressingRegistry::X), false),
             (0b111, 0b10) => Addressing::absolute_indexed(Some(AddressingRegistry::X), false),
             // c == 00
-            (0b000, 0b00) => Addressing::immediate(),
+            (0b000, 0b00) => Addressing::immediate(None),
             (0b001, 0b00) => Addressing::zero_page(),
             (0b011, 0b00) => Addressing::absolute(),
             (0b101, 0b00) => Addressing::zero_page_indexed(Some(AddressingRegistry::X), false),

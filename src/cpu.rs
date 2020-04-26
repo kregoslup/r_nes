@@ -1,7 +1,5 @@
 use crate::op_code::OpCode;
-use crate::addressing::AddressingMode::{IndexedIndirect, ZeroPage, Immediate, IndirectIndexed,
-                                        ZeroPageIndexed, Absolute, AbsoluteIndexed, Accumulator,
-                                        Indirect, Relative};
+use crate::addressing::AddressingMode::{IndexedIndirect, ZeroPage, Immediate, IndirectIndexed, ZeroPageIndexed, Absolute, AbsoluteIndexed, Accumulator, Indirect, Relative, Implied};
 use crate::bus::Bus;
 use crate::addressing::{Addressing, AddressingMode, AddressingRegistry};
 use crate::util::{combine_u8, msb, lsb, nth_bit};
@@ -270,14 +268,11 @@ impl Cpu {
     }
 
     fn read_flags_from_stack(&mut self) -> Flags {
-        self.stack_pointer += 1;
         self.pull_from_stack().into()
     }
 
     fn read_pc_from_stack(&mut self) -> u16 {
-        self.stack_pointer += 1;
         let lsb =  self.pull_from_stack();
-        self.stack_pointer += 1;
         let msb =  self.pull_from_stack();
         combine_u8(lsb, msb)
     }
@@ -298,6 +293,10 @@ impl Cpu {
             0x68 => self.pull_accumulator(),
             0x40 => self.return_from(true),
             0x60 => self.return_from(false),
+            0xCA => self.offset_register_by_one(Addressing::immediate(Option::from(AddressingRegistry::X)), false),
+            0x88 => self.offset_register_by_one(Addressing::immediate(Option::from(AddressingRegistry::Y)), false),
+            0xC8 => self.offset_register_by_one(Addressing::immediate(Option::from(AddressingRegistry::Y)), true),
+            0xE8 => self.offset_register_by_one(Addressing::immediate(Option::from(AddressingRegistry::X)), true),
             0x20 => self.jump_to_subroutine(Addressing::absolute()),
             _ => self.decode_op_code(op_code)
         }
@@ -321,8 +320,8 @@ impl Cpu {
             (0b011, _, 0b10) => self.rotate_right(addressing),
             (0b100, _, 0b10) => self.store_register(addressing, self.reg_x),
             (0b101, _, 0b10) => self.load_register(addressing, AddressingRegistry::X),
-            (0b110, _, 0b10) => self.offset_by_one(addressing, false),
-            (0b111, _, 0b10) => self.offset_by_one(addressing, true),
+            (0b110, _, 0b10) => self.offset_memory_by_one(addressing, false),
+            (0b111, _, 0b10) => self.offset_memory_by_one(addressing, true),
             (0b001, _, 0b00) => self.bit_test(addressing),
             (0b010, _, 0b00) => self.jump(Addressing::absolute()),
             (0b011, _, 0b00) => self.jump(Addressing::indirect()),
@@ -463,20 +462,46 @@ impl Cpu {
         cycles
     }
 
-    fn offset_by_one(&mut self, addressing: Addressing, increment: bool) -> u8 {
+    fn offset_register_by_one(&mut self, addressing: Addressing, increment: bool) -> u8 {
+        let mut cycles = 2;
+        match addressing.register {
+            Some(AddressingRegistry::X) => {
+                let result = self.offset_by_one(self.reg_x, increment);
+                self.reg_x = result;
+            },
+            Some(AddressingRegistry::Y) => {
+                let result = self.offset_by_one(self.reg_y, increment);
+                self.reg_y = result;
+            }
+            None => {
+                let result = self.offset_by_one(self.acc, increment);
+                self.acc = result;
+            }
+        };
+        cycles
+    }
+
+    fn offset_memory_by_one(&mut self, addressing: Addressing, increment: bool) -> u8 {
         let mut cycles = 2;
         let (mut value, address) = self.fetch_with_addressing_mode(&addressing);
-        if increment {
-            value = (Wrapping(value) + Wrapping(1)).0;
-        } else {
-            value = (Wrapping(value) - Wrapping(1)).0;
-        }
-        self.store(value, address);
-        self.set_negative(value as u16);
-        self.set_zero(value as u16);
+        let result = self.offset_by_one(value, increment);
+        self.store(result, address);
 
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, false);
         cycles
+    }
+
+    fn offset_by_one(&mut self, value: u8,  increment: bool) -> u8 {
+        let mut result = value;
+        if increment {
+            result = (Wrapping(result) + Wrapping(1)).0;
+        } else {
+            result = (Wrapping(result) - Wrapping(1)).0;
+        }
+//        self.store(result, address);
+        self.set_negative(result as u16);
+        self.set_zero(result as u16);
+        result
     }
 
     fn load_register(&mut self, addressing: Addressing, target: AddressingRegistry) -> u8 {
@@ -948,6 +973,27 @@ mod tests {
         reset_cpu(&mut cpu);
         cpu.evaluate(OpCode::new(0xCE));
         assert_eq!(cpu.fetch(4), 0);
+    }
+
+    #[test]
+    fn test_increment_reg_x() {
+        let mut cpu = create_test_cpu(vec![0xE8]);
+        reset_cpu(&mut cpu);
+        cpu.reg_x = 0;
+        cpu.status = Flags::ZERO | Flags::PLACEHOLDER | Flags::NEGATIVE;
+        cpu.evaluate(OpCode::new(0xE8));
+        assert_eq!(cpu.reg_x, 1);
+        assert_eq!(cpu.status, Flags::PLACEHOLDER)
+    }
+
+    #[test]
+    fn test_decrement_reg_y() {
+        let mut cpu = create_test_cpu(vec![0x88]);
+        reset_cpu(&mut cpu);
+        cpu.reg_y = 1;
+        cpu.evaluate(OpCode::new(0x88));
+        assert_eq!(cpu.reg_y, 0);
+        assert_eq!(cpu.status, Flags::ZERO | Flags::PLACEHOLDER)
     }
 
     #[test]
