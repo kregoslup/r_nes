@@ -333,6 +333,12 @@ impl Cpu {
         }
     }
 
+    fn transfer(from: AddressingRegistry, to: AddressingRegistry) -> u8 {
+        let cycles = 2;
+        let result = match
+        cycles
+    }
+
     fn push_accumulator(&mut self) -> u8 {
         let cycles = 3;
         self.push_on_stack(self.acc);
