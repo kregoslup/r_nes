@@ -25,7 +25,9 @@ pub enum AddressingMode {
 #[derive(PartialEq, Copy, Clone)]
 pub enum AddressingRegistry {
     X,
-    Y
+    Y,
+    Acc,
+    StackPtr
 }
 
 impl Addressing {

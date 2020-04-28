@@ -163,7 +163,7 @@ impl Cpu {
         let to_add = match addressing.register {
             Some(AddressingRegistry::X) => self.reg_x,
             Some(AddressingRegistry::Y) => self.reg_y,
-            None => panic!("Addressing registry has to be filled")
+            _ => panic!("Addressing registry has to be filled")
         };
         println!("Fetching indexed address {:#01X} created from {:#01X} and {:#01X}", (base as u16) + (to_add as u16), base, to_add);
         (base as u16) + (to_add as u16)
@@ -333,9 +333,22 @@ impl Cpu {
         }
     }
 
-    fn transfer(from: AddressingRegistry, to: AddressingRegistry) -> u8 {
+    fn transfer(&mut self, from: AddressingRegistry, into: AddressingRegistry) -> u8 {
         let cycles = 2;
-        let result = match
+        let from = match from {
+            AddressingRegistry::X => self.reg_x,
+            AddressingRegistry::Y => self.reg_y,
+            AddressingRegistry::Acc => self.acc,
+            AddressingRegistry::StackPtr => self.stack_pointer
+        };
+        let result = match into {
+            AddressingRegistry::X => self.reg_x = from,
+            AddressingRegistry::Y => self.reg_y = from,
+            AddressingRegistry::Acc => self.acc = from,
+            AddressingRegistry::StackPtr => self.stack_pointer = from
+        };
+        self.set_zero(result as u16);
+        self.set_negative(result as u16);
         cycles
     }
 
@@ -479,7 +492,7 @@ impl Cpu {
                 let result = self.offset_by_one(self.reg_y, increment);
                 self.reg_y = result;
             }
-            None => {
+            _ => {
                 let result = self.offset_by_one(self.acc, increment);
                 self.acc = result;
             }
