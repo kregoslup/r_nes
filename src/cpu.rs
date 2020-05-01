@@ -290,6 +290,9 @@ impl Cpu {
             0xD8 => self.clear_flag(Flags::DECIMAL),
             0x58 => self.clear_flag(Flags::IRQ_DIS),
             0xB8 => self.clear_flag(Flags::OVERFLOW),
+            0xF8 => self.set_flag(Flags::DECIMAL),
+            0x78 => self.set_flag(Flags::IRQ_DIS),
+            0x38 => self.set_flag(Flags::CARRY),
             0xAA => self.transfer(AddressingRegistry::Acc, AddressingRegistry::X),
             0xA8 => self.transfer(AddressingRegistry::Acc, AddressingRegistry::Y),
             0xBA => self.transfer(AddressingRegistry::StackPtr, AddressingRegistry::X),
@@ -346,6 +349,12 @@ impl Cpu {
     fn clear_flag(&mut self, flag: Flags) -> u8 {
         let cycles = 2;
         self.status.set_flag(false, flag);
+        cycles
+    }
+
+    fn set_flag(&mut self, flag: Flags) -> u8 {
+        let cycles = 2;
+        self.status.set_flag(true, flag);
         cycles
     }
 
@@ -1220,6 +1229,15 @@ mod tests {
         cpu.evaluate(OpCode::new(0x9A));
         assert_eq!(cpu.stack_pointer, 0b1111_1111);
         assert_eq!(cpu.status, Flags::PLACEHOLDER)
+    }
+
+    #[test]
+    fn test_set_flag() {
+        let mut cpu = create_test_cpu(vec![0x38]);
+        reset_cpu(&mut cpu);
+        cpu.status = Flags::PLACEHOLDER;
+        cpu.evaluate(OpCode::new(0x38));
+        assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::CARRY)
     }
 
     #[test]
