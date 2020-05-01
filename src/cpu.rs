@@ -286,6 +286,12 @@ impl Cpu {
     pub fn evaluate(&mut self, op_code: OpCode) -> u8 {
         println!("Evaluating op code, hex: {:#02X}, bin: {:#08b}", op_code.value, op_code.value);
         match op_code.value {
+            0xAA => self.transfer(AddressingRegistry::Acc, AddressingRegistry::X),
+            0xA8 => self.transfer(AddressingRegistry::Acc, AddressingRegistry::Y),
+            0xBA => self.transfer(AddressingRegistry::StackPtr, AddressingRegistry::X),
+            0x8A => self.transfer(AddressingRegistry::X, AddressingRegistry::Acc),
+            0x9A => self.transfer(AddressingRegistry::X, AddressingRegistry::StackPtr),
+            0x98 => self.transfer(AddressingRegistry::Y, AddressingRegistry::Acc),
             0x00 => self.force_break(),
             0x08 => self.push_processor_status(),
             0x28 => self.pull_processor_status(),
@@ -341,14 +347,16 @@ impl Cpu {
             AddressingRegistry::Acc => self.acc,
             AddressingRegistry::StackPtr => self.stack_pointer
         };
-        let result = match into {
+        match into {
             AddressingRegistry::X => self.reg_x = from,
             AddressingRegistry::Y => self.reg_y = from,
             AddressingRegistry::Acc => self.acc = from,
             AddressingRegistry::StackPtr => self.stack_pointer = from
         };
-        self.set_zero(result as u16);
-        self.set_negative(result as u16);
+        if !(into == AddressingRegistry::StackPtr) {
+            self.set_zero(from as u16);
+            self.set_negative(from as u16);
+        }
         cycles
     }
 
@@ -1187,6 +1195,21 @@ mod tests {
         cpu.evaluate(OpCode::new(0x68));
 
         assert_eq!(cpu.acc, acc)
+    }
+
+    #[test]
+    fn test_transfer() {
+        let mut cpu = create_test_cpu(vec![0xAA]);
+        reset_cpu(&mut cpu);
+        cpu.acc = 10;
+        cpu.evaluate(OpCode::new(0xAA));
+        assert_eq!(cpu.reg_x, 10);
+
+        reset_cpu(&mut cpu);
+        cpu.reg_x = 0b1111_1111;
+        cpu.evaluate(OpCode::new(0x9A));
+        assert_eq!(cpu.stack_pointer, 0b1111_1111);
+        assert_eq!(cpu.status, Flags::PLACEHOLDER)
     }
 
     #[test]
