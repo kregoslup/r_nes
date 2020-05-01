@@ -293,6 +293,7 @@ impl Cpu {
             0xF8 => self.set_flag(Flags::DECIMAL),
             0x78 => self.set_flag(Flags::IRQ_DIS),
             0x38 => self.set_flag(Flags::CARRY),
+            0xEA => self.noop(),
             0xAA => self.transfer(AddressingRegistry::Acc, AddressingRegistry::X),
             0xA8 => self.transfer(AddressingRegistry::Acc, AddressingRegistry::Y),
             0xBA => self.transfer(AddressingRegistry::StackPtr, AddressingRegistry::X),
@@ -344,6 +345,11 @@ impl Cpu {
             (0b111, _, 0b00) => self.compare(addressing, self.reg_x),
             _ => panic!("Unknown op code")
         }
+    }
+
+    fn noop(&mut self) -> u8 {
+        let cycles = 2;
+        cycles
     }
 
     fn clear_flag(&mut self, flag: Flags) -> u8 {
