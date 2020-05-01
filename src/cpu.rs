@@ -286,6 +286,10 @@ impl Cpu {
     pub fn evaluate(&mut self, op_code: OpCode) -> u8 {
         println!("Evaluating op code, hex: {:#02X}, bin: {:#08b}", op_code.value, op_code.value);
         match op_code.value {
+            0x18 => self.clear_flag(Flags::CARRY),
+            0xD8 => self.clear_flag(Flags::DECIMAL),
+            0x58 => self.clear_flag(Flags::IRQ_DIS),
+            0xB8 => self.clear_flag(Flags::OVERFLOW),
             0xAA => self.transfer(AddressingRegistry::Acc, AddressingRegistry::X),
             0xA8 => self.transfer(AddressingRegistry::Acc, AddressingRegistry::Y),
             0xBA => self.transfer(AddressingRegistry::StackPtr, AddressingRegistry::X),
@@ -337,6 +341,12 @@ impl Cpu {
             (0b111, _, 0b00) => self.compare(addressing, self.reg_x),
             _ => panic!("Unknown op code")
         }
+    }
+
+    fn clear_flag(&mut self, flag: Flags) -> u8 {
+        let cycles = 2;
+        self.status.set_flag(false, flag);
+        cycles
     }
 
     fn transfer(&mut self, from: AddressingRegistry, into: AddressingRegistry) -> u8 {
@@ -1209,6 +1219,42 @@ mod tests {
         cpu.reg_x = 0b1111_1111;
         cpu.evaluate(OpCode::new(0x9A));
         assert_eq!(cpu.stack_pointer, 0b1111_1111);
+        assert_eq!(cpu.status, Flags::PLACEHOLDER)
+    }
+
+    #[test]
+    fn test_clear_carry() {
+        let mut cpu = create_test_cpu(vec![0x18]);
+        reset_cpu(&mut cpu);
+        cpu.status = Flags::PLACEHOLDER | Flags::CARRY;
+        cpu.evaluate(OpCode::new(0x18));
+        assert_eq!(cpu.status, Flags::PLACEHOLDER)
+    }
+
+    #[test]
+    fn test_clear_decimal() {
+        let mut cpu = create_test_cpu(vec![0xD8]);
+        reset_cpu(&mut cpu);
+        cpu.status = Flags::PLACEHOLDER | Flags::DECIMAL;
+        cpu.evaluate(OpCode::new(0xD8));
+        assert_eq!(cpu.status, Flags::PLACEHOLDER)
+    }
+
+    #[test]
+    fn test_clear_irq_dis() {
+        let mut cpu = create_test_cpu(vec![0x58]);
+        reset_cpu(&mut cpu);
+        cpu.status = Flags::PLACEHOLDER | Flags::IRQ_DIS;
+        cpu.evaluate(OpCode::new(0x58));
+        assert_eq!(cpu.status, Flags::PLACEHOLDER)
+    }
+
+    #[test]
+    fn test_clear_overflow() {
+        let mut cpu = create_test_cpu(vec![0xB8]);
+        reset_cpu(&mut cpu);
+        cpu.status = Flags::PLACEHOLDER | Flags::OVERFLOW;
+        cpu.evaluate(OpCode::new(0xB8));
         assert_eq!(cpu.status, Flags::PLACEHOLDER)
     }
 
