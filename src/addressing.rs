@@ -7,7 +7,7 @@ pub struct Addressing {
 }
 
 // Add wrapping around
-#[derive(PartialEq, Copy, Clone)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 pub enum AddressingMode {
     IndexedIndirect,
     IndirectIndexed,
@@ -22,7 +22,7 @@ pub enum AddressingMode {
     Implied,
 }
 
-#[derive(PartialEq, Copy, Clone)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 pub enum AddressingRegistry {
     X,
     Y,

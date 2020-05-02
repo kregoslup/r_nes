@@ -3,10 +3,12 @@ use crate::addressing::AddressingMode::{IndexedIndirect, ZeroPage, Immediate, In
 use crate::bus::Bus;
 use crate::addressing::{Addressing, AddressingMode, AddressingRegistry};
 use crate::util::{combine_u8, msb, lsb, nth_bit};
+use crate::flags::Flags;
 
 use std::ops::{BitOr, BitAnd, BitXor, Shl, Shr};
 use bitflags::_core::num::Wrapping;
 use std::u8;
+use std::borrow::Borrow;
 
 #[derive(Debug)]
 struct Cpu {
@@ -18,47 +20,6 @@ struct Cpu {
     status: Flags,
     cycles: u8,
     bus: Bus
-}
-
-bitflags! {
-    pub struct Flags: u8 {
-        const NEGATIVE = 0b1000_0000;
-        const OVERFLOW = 0b0100_0000;
-        const PLACEHOLDER = 0b0010_0000;
-        const BRK = 0b0001_0000;
-        const DECIMAL = 0b0000_1000;
-        const IRQ_DIS = 0b0000_0100;
-        const ZERO = 0b0000_0010;
-        const CARRY = 0b0000_0001;
-    }
-}
-
-impl Default for Flags {
-    fn default() -> Flags {
-        Flags::PLACEHOLDER
-    }
-}
-
-impl Flags {
-    pub fn set_flag(&mut self, value: bool, flag: Flags) {
-        if value {
-            self.insert(flag)
-        } else {
-            self.remove(flag)
-        }
-    }
-}
-
-impl From<Flags> for u8 {
-    fn from(flag: Flags) -> Self {
-        flag.bits()
-    }
-}
-
-impl From<u8> for Flags {
-    fn from(item: u8) -> Self {
-        Flags::from_bits_truncate(item)
-    }
 }
 
 impl Cpu {
@@ -348,23 +309,27 @@ impl Cpu {
     }
 
     fn noop(&mut self) -> u8 {
+        println!("NOOP instruction");
         let cycles = 2;
         cycles
     }
 
     fn clear_flag(&mut self, flag: Flags) -> u8 {
+        println!("Clear flag instruction. Flag to clear: {}", flag);
         let cycles = 2;
         self.status.set_flag(false, flag);
         cycles
     }
 
     fn set_flag(&mut self, flag: Flags) -> u8 {
+        println!("Set flag instruction. Flag to set: {}", flag);
         let cycles = 2;
         self.status.set_flag(true, flag);
         cycles
     }
 
     fn transfer(&mut self, from: AddressingRegistry, into: AddressingRegistry) -> u8 {
+        println!("Transfer; from: {:?} to: {:?}", from, into);
         let cycles = 2;
         let from = match from {
             AddressingRegistry::X => self.reg_x,
