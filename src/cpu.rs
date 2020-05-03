@@ -41,7 +41,7 @@ impl Cpu {
     pub fn new(bus: Bus) -> Cpu {
         Cpu {
             stack_pointer: 0xff,
-            program_counter: 1,
+            program_counter: 0,
             acc: 0,
             reg_x: 0,
             reg_y: 0,
@@ -97,6 +97,7 @@ impl Cpu {
         println!("Fetching indexed indirect address {:#01X}", indirect_address);
         let lsb = self.fetch(indirect_address);
         let msb = self.fetch(indirect_address + 1);
+        println!("Combining msb {:#01X} and lsb {:#01X} to address", msb, lsb);
         let address = combine_u8(lsb, msb);
         println!("Fetching address {:#01X}", address);
         address
@@ -119,6 +120,7 @@ impl Cpu {
         let lsb = self.fetch(self.program_counter);
         self.program_counter += 1;
         let msb = self.fetch(self.program_counter);
+        println!("Combining addresses, lsb: {}, msb: {}", lsb, msb);
         println!("Fetching absolute address {}", combine_u8(lsb, msb));
         combine_u8(lsb, msb)
     }
@@ -493,6 +495,7 @@ impl Cpu {
         println!("State before: {:?}", self);
         let mut cycles = 6;
         let new_pc = self.fetch_address(&addressing);
+        println!("New program counter: {}", new_pc);
         self.program_counter -= 3;
         self.push_program_counter_on_stack();
         self.program_counter = new_pc;
@@ -830,12 +833,12 @@ mod tests {
         cpu.acc = 0;
         cpu.reg_x = 0;
         cpu.reg_y = 0;
-        cpu.program_counter = 1;
+        cpu.program_counter = 0;
     }
 
     #[test]
     fn test_bit_or() {
-        let mut cpu = create_test_cpu(vec![0x01, 0x03, 0x05, 0x00, 0b1111_1111]);
+        let mut cpu = create_test_cpu(vec![0x01, 0x02, 0x04, 0x00, 0b1111_1111]);
         reset_cpu(&mut cpu);
         cpu.evaluate(OpCode::new(0x01));
         assert_eq!(cpu.acc, 0b1111_1111);
@@ -844,7 +847,7 @@ mod tests {
 
     #[test]
     fn test_bit_and() {
-        let mut cpu = create_test_cpu(vec![0x21, 0x03, 0x05, 0x00, 0b1111_1111]);
+        let mut cpu = create_test_cpu(vec![0x21, 0x02, 0x04, 0x00, 0b1111_1111]);
         reset_cpu(&mut cpu);
         cpu.evaluate(OpCode::new(0x21));
         assert_eq!(cpu.acc, 0b0000_0000);
@@ -853,7 +856,7 @@ mod tests {
 
     #[test]
     fn test_bit_xor() {
-        let mut cpu = create_test_cpu(vec![0x41, 0x03, 0x05, 0x00, 0b1111_1111]);
+        let mut cpu = create_test_cpu(vec![0x41, 0x02, 0x04, 0x00, 0b1111_1111]);
         reset_cpu(&mut cpu);
         cpu.acc = 0b1111_1111;
         cpu.evaluate(OpCode::new(0x41));
@@ -863,7 +866,7 @@ mod tests {
 
     #[test]
     fn test_adc() {
-        let mut cpu = create_test_cpu(vec![0x61, 0x03, 0x05, 0x00, 2]);
+        let mut cpu = create_test_cpu(vec![0x61, 0x02, 0x04, 0x00, 2]);
         reset_cpu(&mut cpu);
         cpu.acc = 3;
         cpu.evaluate(OpCode::new(0x61));
@@ -873,7 +876,7 @@ mod tests {
 
     #[test]
     fn test_sbc() {
-        let mut cpu = create_test_cpu(vec![0xE1, 0x03, 0x05, 0x00, 2]);
+        let mut cpu = create_test_cpu(vec![0xE1, 0x02, 0x04, 0x00, 2]);
         reset_cpu(&mut cpu);
         cpu.acc = 3;
         cpu.evaluate(OpCode::new(0xE1));
@@ -886,7 +889,7 @@ mod tests {
     #[ignore]
     fn test_overflow_sub() {
         // FIXME: Somehow this doesn't work
-        let mut cpu = create_test_cpu(vec![0xE1, 0x03, 0x05, 0x00, 176]);
+        let mut cpu = create_test_cpu(vec![0xE1, 0x02, 0x04, 0x00, 176]);
         reset_cpu(&mut cpu);
         cpu.acc = 80;
         cpu.evaluate(OpCode::new(0xE1));
@@ -896,7 +899,7 @@ mod tests {
 
     #[test]
     fn test_overflow_add() {
-        let mut cpu = create_test_cpu(vec![0x61, 0x03, 0x05, 0x00, 80]);
+        let mut cpu = create_test_cpu(vec![0x61, 0x02, 0x04, 0x00, 80]);
         reset_cpu(&mut cpu);
         cpu.acc = 80;
         cpu.evaluate(OpCode::new(0x61));
@@ -906,7 +909,7 @@ mod tests {
 
     #[test]
     fn test_carry() {
-        let mut cpu = create_test_cpu(vec![0x61, 0x03, 0x05, 0x00, 80]);
+        let mut cpu = create_test_cpu(vec![0x61, 0x02, 0x04, 0x00, 80]);
         reset_cpu(&mut cpu);
         cpu.acc = 208;
         cpu.evaluate(OpCode::new(0x61));
@@ -918,7 +921,7 @@ mod tests {
     #[test]
     #[ignore]
     fn test_borrow() {
-        let mut cpu = create_test_cpu(vec![0xE1, 0x03, 0x05, 0x00, 2]);
+        let mut cpu = create_test_cpu(vec![0xE1, 0x02, 0x04, 0x00, 2]);
         reset_cpu(&mut cpu);
         cpu.acc = 1;
         cpu.evaluate(OpCode::new(0xE1));
@@ -928,34 +931,34 @@ mod tests {
 
     #[test]
     fn test_compare() {
-        let mut cpu = create_test_cpu(vec![0xE1, 0x03, 0x05, 0x00, 10]);
+        let mut cpu = create_test_cpu(vec![0xE1, 0x02, 0x04, 0x00, 10]);
         reset_cpu(&mut cpu);
         cpu.acc = 10;
         cpu.evaluate(OpCode::new(0xC1));
         assert_eq!(cpu.acc, 10);
         assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::ZERO | Flags::CARRY);
 
-        let mut cpu = create_test_cpu(vec![0xE1, 0x03, 0x05, 0x00, 9]);
+        let mut cpu = create_test_cpu(vec![0xE1, 0x02, 0x04, 0x00, 9]);
         reset_cpu(&mut cpu);
         cpu.acc = 10;
         cpu.evaluate(OpCode::new(0xC1));
         assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::CARRY);
 
-        let mut cpu = create_test_cpu(vec![0xE1, 0x03, 0x05, 0x00, 11]);
+        let mut cpu = create_test_cpu(vec![0xE1, 0x02, 0x04, 0x00, 11]);
         reset_cpu(&mut cpu);
         cpu.acc = 10;
         cpu.evaluate(OpCode::new(0xC1));
         assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::NEGATIVE);
 
         // cpy
-        let mut cpu = create_test_cpu(vec![0xCC, 0x04, 0x00, 11]);
+        let mut cpu = create_test_cpu(vec![0xCC, 0x03, 0x00, 11]);
         reset_cpu(&mut cpu);
         cpu.reg_y = 10;
         cpu.evaluate(OpCode::new(0xCC));
         assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::NEGATIVE);
 
         //cpx
-        let mut cpu = create_test_cpu(vec![0xCC, 0x04, 0x00, 11]);
+        let mut cpu = create_test_cpu(vec![0xCC, 0x03, 0x00, 11]);
         reset_cpu(&mut cpu);
         cpu.reg_x = 10;
         cpu.evaluate(OpCode::new(0xCC));
@@ -964,7 +967,7 @@ mod tests {
 
     #[test]
     fn test_load_accumulator() {
-        let mut cpu = create_test_cpu(vec![0xE1, 0x03, 0x05, 0x00, 180]);
+        let mut cpu = create_test_cpu(vec![0xE1, 0x02, 0x04, 0x00, 180]);
         reset_cpu(&mut cpu);
         cpu.acc = 0;
         cpu.evaluate(OpCode::new(0xA1));
@@ -973,19 +976,19 @@ mod tests {
 
     #[test]
     fn test_store_accumulator() {
-        let mut cpu = create_test_cpu(vec![0xE1, 0x03, 0x05, 0x00, 180]);
+        let mut cpu = create_test_cpu(vec![0xE1, 0x02, 0x04, 0x00, 180]);
         reset_cpu(&mut cpu);
         cpu.acc = 10;
         cpu.evaluate(OpCode::new(0x81));
-        assert_eq!(cpu.fetch(5), 10);
+        assert_eq!(cpu.fetch(4), 10);
     }
 
     #[test]
     fn test_shift_left() {
-        let mut cpu = create_test_cpu(vec![0x0E, 0x04, 0x00, 20, 5, 6, 7]);
+        let mut cpu = create_test_cpu(vec![0x0E, 0x03, 0x00, 20, 5, 6, 7]);
         reset_cpu(&mut cpu);
         cpu.evaluate(OpCode::new(0x0E));
-        assert_eq!(cpu.fetch(4), 40);
+        assert_eq!(cpu.fetch(3), 40);
 
 //         acc
         let mut cpu = create_test_cpu(vec![0x0A]);
@@ -998,45 +1001,45 @@ mod tests {
 
     #[test]
     fn test_rotate_left() {
-        let mut cpu = create_test_cpu(vec![0x2E, 0x04, 0x00, 0b1000_0000]);
+        let mut cpu = create_test_cpu(vec![0x2E, 0x03, 0x00, 0b1000_0000]);
         reset_cpu(&mut cpu);
         cpu.status = Flags::PLACEHOLDER | Flags::CARRY;
         cpu.evaluate(OpCode::new(0x2E));
-        assert_eq!(cpu.fetch(4), 0b0000_0001);
+        assert_eq!(cpu.fetch(3), 0b0000_0001);
         assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::CARRY);
     }
 
     #[test]
     fn test_logical_shift_right() {
-        let mut cpu = create_test_cpu(vec![0x4E, 0x04, 0x00, 0b1000_0001]);
+        let mut cpu = create_test_cpu(vec![0x4E, 0x03, 0x00, 0b1000_0001]);
         reset_cpu(&mut cpu);
         cpu.evaluate(OpCode::new(0x4E));
-        assert_eq!(cpu.fetch(4), 0b0100_0000);
+        assert_eq!(cpu.fetch(3), 0b0100_0000);
         assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::CARRY);
     }
 
     #[test]
     fn test_rotate_right() {
-        let mut cpu = create_test_cpu(vec![0x6E, 0x04, 0x00, 0b0000_0000]);
+        let mut cpu = create_test_cpu(vec![0x6E, 0x03, 0x00, 0b0000_0000]);
         reset_cpu(&mut cpu);
         cpu.status = Flags::PLACEHOLDER | Flags::CARRY;
         cpu.evaluate(OpCode::new(0x6E));
-        assert_eq!(cpu.fetch(4), 0b1000_0000);
+        assert_eq!(cpu.fetch(3), 0b1000_0000);
         assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::NEGATIVE);
     }
 
     #[test]
     fn test_store_register_x() {
-        let mut cpu = create_test_cpu(vec![0x96, 0x04, 0x00, 0b0000_0000]);
+        let mut cpu = create_test_cpu(vec![0x96, 0x03, 0x00, 0b0000_0000]);
         reset_cpu(&mut cpu);
         cpu.reg_x = 10;
         cpu.evaluate(OpCode::new(0x96));
-        assert_eq!(cpu.fetch(4), 10);
+        assert_eq!(cpu.fetch(3), 10);
     }
 
     #[test]
     fn test_load_register_x() {
-        let mut cpu = create_test_cpu(vec![0xB6, 0x04, 0x00, 150]);
+        let mut cpu = create_test_cpu(vec![0xB6, 0x03, 0x00, 150]);
         reset_cpu(&mut cpu);
         cpu.reg_x = 10;
         cpu.evaluate(OpCode::new(0xB6));
@@ -1047,17 +1050,17 @@ mod tests {
     //TODO: Add test for ZP, X
     #[test]
     fn test_store_register_y() {
-        let mut cpu = create_test_cpu(vec![0x8C, 0x04, 0x00, 0b0000_0000]);
+        let mut cpu = create_test_cpu(vec![0x8C, 0x03, 0x00, 0b0000_0000]);
         reset_cpu(&mut cpu);
         cpu.reg_y = 10;
         cpu.evaluate(OpCode::new(0x8C));
-        assert_eq!(cpu.fetch(4), 10);
+        assert_eq!(cpu.fetch(3), 10);
     }
 
     //TODO: Add test for ZP, X
     #[test]
     fn test_load_register_y() {
-        let mut cpu = create_test_cpu(vec![0xAC, 0x04, 0x00, 150]);
+        let mut cpu = create_test_cpu(vec![0xAC, 0x03, 0x00, 150]);
         reset_cpu(&mut cpu);
         cpu.reg_y = 10;
         cpu.evaluate(OpCode::new(0xAC));
@@ -1067,18 +1070,18 @@ mod tests {
 
     #[test]
     fn test_increment() {
-        let mut cpu = create_test_cpu(vec![0xEE, 0x04, 0x00, 0b0000_0000]);
+        let mut cpu = create_test_cpu(vec![0xEE, 0x03, 0x00, 0b0000_0000]);
         reset_cpu(&mut cpu);
         cpu.evaluate(OpCode::new(0xFE));
-        assert_eq!(cpu.fetch(4), 1);
+        assert_eq!(cpu.fetch(3), 1);
     }
 
     #[test]
     fn test_decrement() {
-        let mut cpu = create_test_cpu(vec![0xCE, 0x04, 0x00, 1]);
+        let mut cpu = create_test_cpu(vec![0xCE, 0x03, 0x00, 1]);
         reset_cpu(&mut cpu);
         cpu.evaluate(OpCode::new(0xCE));
-        assert_eq!(cpu.fetch(4), 0);
+        assert_eq!(cpu.fetch(3), 0);
     }
 
     #[test]
@@ -1104,7 +1107,7 @@ mod tests {
 
     #[test]
     fn test_bit_test() {
-        let mut cpu = create_test_cpu(vec![0x2C, 0x04, 0x00, 0b1100_0000]);
+        let mut cpu = create_test_cpu(vec![0x2C, 0x03, 0x00, 0b1100_0000]);
         reset_cpu(&mut cpu);
         cpu.acc == 0;
         cpu.evaluate(OpCode::new(0x2C));
@@ -1121,7 +1124,7 @@ mod tests {
 
     #[test]
     fn test_jmp_indirect() {
-        let mut cpu = create_test_cpu(vec![0x6C, 0x04, 0x00, 20, 0]);
+        let mut cpu = create_test_cpu(vec![0x6C, 0x03, 0x00, 20, 0]);
         reset_cpu(&mut cpu);
         cpu.evaluate(OpCode::new(0x6C));
         assert_eq!(cpu.program_counter, 20)
@@ -1133,7 +1136,7 @@ mod tests {
         reset_cpu(&mut cpu);
         cpu.status = Flags::PLACEHOLDER | Flags::NEGATIVE;
         cpu.evaluate(OpCode::new(0x30));
-        assert_eq!(cpu.program_counter, 6)
+        assert_eq!(cpu.program_counter, 5)
     }
 
     #[test]
@@ -1141,8 +1144,8 @@ mod tests {
         let len = 0x10000;
         let mut memory = vec![0; len];
         // TODO: Fix off by one in tests
-        memory[0xFFFD] = 0x44;
-        memory[0xFFFE] = 0x66;
+        memory[0xFFFE] = 0x44;
+        memory[0xFFFF] = 0x66;
         let mut cpu = create_test_cpu(memory);
         reset_cpu(&mut cpu);
         cpu.program_counter = 0x1234;
@@ -1171,13 +1174,14 @@ mod tests {
 
         let mut cpu = create_test_cpu(memory);
         reset_cpu(&mut cpu);
-        cpu.program_counter = 3;
+        cpu.program_counter = 2;
         cpu.evaluate(OpCode::new(0x20));
         assert_eq!(cpu.program_counter, 0x03);
 
         let lsb_stored_program_counter =  cpu.fetch((cpu.stack_pointer + 1) as u16);
         let msb_stored_program_counter =  cpu.fetch((cpu.stack_pointer + 2) as u16);
-        assert_eq!(combine_u8(lsb_stored_program_counter, msb_stored_program_counter), 2)
+
+        assert_eq!(combine_u8(lsb_stored_program_counter, msb_stored_program_counter), 1)
     }
 
     #[test]
@@ -1186,9 +1190,9 @@ mod tests {
         let mut memory = vec![0; len];
         let flags_on_stack = Flags::NEGATIVE | Flags::PLACEHOLDER | Flags::OVERFLOW;
         memory[0] = 0x40;
-        memory[0x00FE] = 0x44;
-        memory[0x00FD] = 0x66;
-        memory[0x00FC] = flags_on_stack.bits();
+        memory[0x00FF] = 0x44;
+        memory[0x00FE] = 0x66;
+        memory[0x00FD] = flags_on_stack.bits();
 
         let mut cpu = create_test_cpu(memory);
         reset_cpu(&mut cpu);
@@ -1206,8 +1210,8 @@ mod tests {
         let mut memory = vec![0; len];
         let flags_on_stack = Flags::NEGATIVE | Flags::PLACEHOLDER | Flags::OVERFLOW;
         memory[0] = 0x40;
-        memory[0x00FE] = 0x44;
-        memory[0x00FD] = 0x66;
+        memory[0x00FF] = 0x44;
+        memory[0x00FE] = 0x66;
 
         let mut cpu = create_test_cpu(memory);
         reset_cpu(&mut cpu);
@@ -1238,7 +1242,7 @@ mod tests {
         let len = 0x10000;
         let mut memory = vec![0; len];
         let stored_flags = Flags::NEGATIVE | Flags::PLACEHOLDER | Flags::OVERFLOW;
-        memory[0x00FE] = stored_flags.bits();
+        memory[0x00FF] = stored_flags.bits();
 
         let mut cpu = create_test_cpu(memory);
         reset_cpu(&mut cpu);
@@ -1267,7 +1271,7 @@ mod tests {
         let len = 0x10000;
         let mut memory = vec![0; len];
         let acc = 20;
-        memory[0x00FE] = acc;
+        memory[0x00FF] = acc;
         let mut cpu = create_test_cpu(memory);
         reset_cpu(&mut cpu);
         cpu.stack_pointer -= 1;
@@ -1339,7 +1343,7 @@ mod tests {
 
     #[test]
     fn test_indexed_indirect() {
-        let mut cpu = create_test_cpu(vec![0x01, 0x03, 0x05, 0x00, 0b1111_1111]);
+        let mut cpu = create_test_cpu(vec![0x01, 0x02, 0x04, 0x00, 0b1111_1111]);
         reset_cpu(&mut cpu);
         cpu.evaluate(OpCode::new(0x01));
         assert_eq!(cpu.acc, 0b1111_1111);
@@ -1348,7 +1352,7 @@ mod tests {
 
     #[test]
     fn test_zero_page() {
-        let mut cpu = create_test_cpu(vec![0x05, 0x03, 0b1111_1111]);
+        let mut cpu = create_test_cpu(vec![0x05, 0x02, 0b1111_1111]);
         reset_cpu(&mut cpu);
         cpu.evaluate(OpCode::new(0x05));
         assert_eq!(cpu.acc, 0b1111_1111);
@@ -1366,7 +1370,7 @@ mod tests {
 
     #[test]
     fn test_absolute() {
-        let mut cpu = create_test_cpu(vec![0x05, 0x4, 0x0, 0b1111_1111]);
+        let mut cpu = create_test_cpu(vec![0x05, 0x3, 0x0, 0b1111_1111]);
         reset_cpu(&mut cpu);
         cpu.evaluate(OpCode::new(0x0D));
         assert_eq!(cpu.acc, 0b1111_1111);
@@ -1377,7 +1381,7 @@ mod tests {
     fn test_indirect_indexed() {
         let mut cpu = create_test_cpu(vec![0x05, 0x0, 0b1111_1111, 0x0]);
         reset_cpu(&mut cpu);
-        cpu.reg_y = 3;
+        cpu.reg_y = 2;
         cpu.evaluate(OpCode::new(0x11));
         assert_eq!(cpu.acc, 0b1111_1111);
         assert_eq!(cpu.status, Flags::NEGATIVE | Flags::PLACEHOLDER)
@@ -1387,7 +1391,7 @@ mod tests {
     fn test_zero_page_indexed() {
         let mut cpu = create_test_cpu(vec![0x05, 0x0, 0b1111_1111]);
         reset_cpu(&mut cpu);
-        cpu.reg_x = 3;
+        cpu.reg_x = 2;
         cpu.evaluate(OpCode::new(0x15));
         assert_eq!(cpu.acc, 0b1111_1111);
         assert_eq!(cpu.status, Flags::NEGATIVE | Flags::PLACEHOLDER)
@@ -1395,7 +1399,7 @@ mod tests {
 
     #[test]
     fn test_absolute_indexed() {
-        let mut cpu = create_test_cpu(vec![0x05, 0x4, 0x0, 0b1111_1111]);
+        let mut cpu = create_test_cpu(vec![0x05, 0x3, 0x0, 0b1111_1111]);
         reset_cpu(&mut cpu);
         cpu.evaluate(OpCode::new(0x19));
         assert_eq!(cpu.acc, 0b1111_1111);

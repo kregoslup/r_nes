@@ -22,11 +22,11 @@ impl Bus {
     }
 
     pub fn fetch(&self, address: u16) -> u8 {
-        self.memory[(address - 1) as usize]
+        self.memory[(address) as usize]
     }
 
     pub fn store(&mut self, value: u8, address: u16) {
-        self.memory[(address - 1) as usize] = value;
+        self.memory[(address) as usize] = value;
     }
 }
 
