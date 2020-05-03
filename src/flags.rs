@@ -1,4 +1,5 @@
 use std::fmt;
+use bitflags::_core::fmt::{Formatter, Error};
 
 bitflags! {
     pub struct Flags: u8 {
