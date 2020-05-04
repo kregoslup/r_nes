@@ -7,6 +7,7 @@ mod bus;
 mod addressing;
 mod util;
 mod flags;
+mod cartridge;
 
 fn main() {
     println!("Hello, world!");

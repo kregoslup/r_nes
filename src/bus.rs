@@ -3,10 +3,18 @@ use std::fs::File;
 use std::io::Read;
 use dirs::home_dir;
 use std::fmt::Debug;
+use crate::cartridge::Cartridge;
+
+static RAM_MIRROR_BOUNDARY: u16 = 0x07FF;
+static RAM_BOUNDARY: u16 = 0x1FFF;
+
+static PPU_MIRROR_BOUNDARY: u16 = 0x2007;
+static PPU_BOUNDARY: u16 = 0x3FFF;
 
 #[derive(Debug)]
 pub struct Bus {
     memory: Vec<u8>
+//    cartridge: Cartridge
 }
 
 impl Bus {
@@ -22,11 +30,21 @@ impl Bus {
     }
 
     pub fn fetch(&self, address: u16) -> u8 {
-        self.memory[(address) as usize]
+        if address <= RAM_BOUNDARY {
+            self.memory[(address & RAM_MIRROR_BOUNDARY) as usize]
+        } else if address <= PPU_BOUNDARY {
+            // ADD PPU
+            self.memory[(address & PPU_MIRROR_BOUNDARY) as usize]
+        }
     }
 
     pub fn store(&mut self, value: u8, address: u16) {
-        self.memory[(address) as usize] = value;
+        if address <= RAM_BOUNDARY {
+            self.memory[(address & RAM_MIRROR_BOUNDARY) as usize] = value;
+        } else if address <= PPU_BOUNDARY {
+            // ADD PPU
+            self.memory[(address & PPU_MIRROR_BOUNDARY) as usize] = value;
+        }
     }
 }
 
