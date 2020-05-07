@@ -4,6 +4,7 @@ use std::io::Read;
 use dirs::home_dir;
 use std::fmt::Debug;
 use crate::cartridge::Cartridge;
+use crate::ppu::Ppu;
 
 static RAM_MIRROR_BOUNDARY: u16 = 0x07FF;
 static RAM_BOUNDARY: u16 = 0x1FFF;
@@ -11,39 +12,50 @@ static RAM_BOUNDARY: u16 = 0x1FFF;
 static PPU_MIRROR_BOUNDARY: u16 = 0x2007;
 static PPU_BOUNDARY: u16 = 0x3FFF;
 
+static CARTRIDGE_LOWER_BOUNDARY: u16 = 0x4020;
+static MEMORY_MAP_BOUNDARY: u16 = 0xFFFF;
+
 #[derive(Debug)]
 pub struct Bus {
-    memory: Vec<u8>
+    memory: Vec<u8>,
+    ppu: Ppu
 //    cartridge: Cartridge
 }
 
 impl Bus {
-    pub fn load_rom(path: &Path) -> Bus {
-        let loaded_rom: Vec<u8> = read_file(path);
-        return Bus::new(loaded_rom)
-    }
 
-    pub fn new(memory: Vec<u8>) -> Bus {
+    pub fn new(memory: Vec<u8>, ppu: Ppu) -> Bus {
         Bus {
             memory,
+            ppu
         }
     }
 
     pub fn fetch(&self, address: u16) -> u8 {
         if address <= RAM_BOUNDARY {
             self.memory[(address & RAM_MIRROR_BOUNDARY) as usize]
-        } else if address <= PPU_BOUNDARY {
+        } else if (address > RAM_BOUNDARY) & (address <= PPU_BOUNDARY) {
             // ADD PPU
-            self.memory[(address & PPU_MIRROR_BOUNDARY) as usize]
+            ppu.fetch(address)
+        } else if (address >= CARTRIDGE_LOWER_BOUNDARY) & (address <= MEMORY_MAP_BOUNDARY) {
+            // TODO: call cartridge
+            unimplemented!();
+        } else {
+            panic!("Memory address not supported, {:#01X}", address)
         }
     }
 
     pub fn store(&mut self, value: u8, address: u16) {
         if address <= RAM_BOUNDARY {
             self.memory[(address & RAM_MIRROR_BOUNDARY) as usize] = value;
-        } else if address <= PPU_BOUNDARY {
+        } else if (address > RAM_BOUNDARY) & (address <= PPU_BOUNDARY) {
             // ADD PPU
-            self.memory[(address & PPU_MIRROR_BOUNDARY) as usize] = value;
+            ppu.save(address, value)
+        } else if (address >= CARTRIDGE_LOWER_BOUNDARY) & (address <= MEMORY_MAP_BOUNDARY) {
+            // TODO: call cartridge
+            unimplemented!();
+        } else {
+            panic!("Memory address not supported, {:#01X}", address)
         }
     }
 }

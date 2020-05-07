@@ -8,6 +8,7 @@ mod addressing;
 mod util;
 mod flags;
 mod cartridge;
+mod ppu;
 
 fn main() {
     println!("Hello, world!");
