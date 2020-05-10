@@ -32,13 +32,11 @@ impl Bus {
     }
 
     pub fn fetch(&self, address: u16) -> u8 {
-        if address <= RAM_BOUNDARY {
-            self.memory[(address & RAM_MIRROR_BOUNDARY) as usize]
-        } else if (address > RAM_BOUNDARY) & (address <= PPU_BOUNDARY) {
-            // ADD PPU
-            ppu.fetch(address)
-        } else if (address >= CARTRIDGE_LOWER_BOUNDARY) & (address <= MEMORY_MAP_BOUNDARY) {
-            // TODO: call cartridge
+        if self.is_ram(address) {
+            self.memory[self.as_ram_address(address) as usize]
+        } else if self.is_ppu(address) {
+            ppu.fetch(address & PPU_MIRROR_BOUNDARY)
+        } else if self.is_cartridge(address) {
             unimplemented!();
         } else {
             panic!("Memory address not supported, {:#01X}", address)
@@ -46,17 +44,35 @@ impl Bus {
     }
 
     pub fn store(&mut self, value: u8, address: u16) {
-        if address <= RAM_BOUNDARY {
-            self.memory[(address & RAM_MIRROR_BOUNDARY) as usize] = value;
-        } else if (address > RAM_BOUNDARY) & (address <= PPU_BOUNDARY) {
-            // ADD PPU
-            ppu.save(address, value)
-        } else if (address >= CARTRIDGE_LOWER_BOUNDARY) & (address <= MEMORY_MAP_BOUNDARY) {
-            // TODO: call cartridge
+        if self.is_ram(address) {
+            self.memory[self.as_ram_address(address) as usize] = value;
+        } else if self.is_ppu(address) {
+            ppu.save(self.as_ppu_address(address), value)
+        } else if self.is_cartridge(address) {
             unimplemented!();
         } else {
             panic!("Memory address not supported, {:#01X}", address)
         }
+    }
+
+    fn is_ram(&self, address: u16) -> bool {
+        return address <= RAM_BOUNDARY
+    }
+
+    fn is_ppu(&self, address: u16) -> bool {
+        return (address > RAM_BOUNDARY) & (address <= PPU_BOUNDARY)
+    }
+
+    fn is_cartridge(&self, address: u16) -> bool {
+        return (address >= CARTRIDGE_LOWER_BOUNDARY) & (address <= MEMORY_MAP_BOUNDARY)
+    }
+
+    fn as_ram_address(&self, address: u16) -> u16 {
+        return address & RAM_MIRROR_BOUNDARY
+    }
+
+    fn as_ppu_address(&self, address: u16) -> u16 {
+        return address & PPU_MIRROR_BOUNDARY
     }
 }
 
