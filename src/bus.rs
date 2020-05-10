@@ -35,7 +35,7 @@ impl Bus {
         if self.is_ram(address) {
             self.memory[self.as_ram_address(address) as usize]
         } else if self.is_ppu(address) {
-            ppu.fetch(address & PPU_MIRROR_BOUNDARY)
+            ppu.fetch(self.as_ppu_address(address))
         } else if self.is_cartridge(address) {
             unimplemented!();
         } else {
