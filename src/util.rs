@@ -5,6 +5,10 @@ pub fn combine_u8(lsb: u8, msb: u8) -> u16 {
     ((msb as u16) << 8).bitor(lsb as u16)
 }
 
+pub fn combine_nibbles(lsb: u8, msb: u8) -> u8 {
+    (msb << 4).bitor(lsb)
+}
+
 pub fn msb(value: u8) -> u8 {
     value >> 7
 }
