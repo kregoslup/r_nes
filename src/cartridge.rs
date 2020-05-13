@@ -8,7 +8,7 @@ pub struct Cartridge {
 
 impl Cartridge {
     pub fn load_cartridge(payload: Vec<u8>) -> Cartridge {
-        let mapper = Cartridge::load_mapper(payload);
+        let mapper = Cartridge::load_mapper(&payload);
         let prg_rom = Cartridge::load_prg(&payload);
         let chr_rom = Cartridge::load_chr(&payload);
         return Cartridge {

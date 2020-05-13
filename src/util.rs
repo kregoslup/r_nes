@@ -24,3 +24,22 @@ pub fn nth_bit(input: u8, n: u8) -> bool {
 pub fn lsb(value: u8) -> u8 {
     value & 0b0000_0001
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_combine_u8() {
+        let lsb = 0x12;
+        let msb = 0x34;
+        assert_eq!(combine_u8(lsb, msb), 0x3412)
+    }
+
+    #[test]
+    fn test_combine_nibbles() {
+        let lsb = 0x01;
+        let msb = 0x02;
+        assert_eq!(combine_nibbles(lsb, msb), 0x12)
+    }
+}
