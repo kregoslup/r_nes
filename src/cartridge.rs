@@ -34,3 +34,14 @@ impl Cartridge {
 
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_load_mapper() {
+        let cartridge = Cartridge::load_cartridge(vec![0, 0, 0, 0, 0x01, 0x02]);
+        assert_eq!(cartridge.mapper, 0x12)
+    }
+}
