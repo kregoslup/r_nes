@@ -18,16 +18,17 @@ static MEMORY_MAP_BOUNDARY: u16 = 0xFFFF;
 #[derive(Debug)]
 pub struct Bus {
     memory: Vec<u8>,
-    ppu: Ppu
-//    cartridge: Cartridge
+    ppu: Ppu,
+    cartridge: Cartridge
 }
 
 impl Bus {
 
-    pub fn new(memory: Vec<u8>, ppu: Ppu) -> Bus {
+    pub fn new(memory: Vec<u8>, ppu: Ppu, cartridge: Cartridge) -> Bus {
         Bus {
             memory,
-            ppu
+            ppu,
+            cartridge
         }
     }
 
