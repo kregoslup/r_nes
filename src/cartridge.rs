@@ -1,17 +1,23 @@
 use crate::util::{combine_nibbles, nth_bit};
 
-pub struct Mapper {
-
-}
-
-impl Mapper {
-
+trait Mapper {
+    fn map(address: u16) -> u16;
 }
 
 pub struct Cartridge {
     prg_rom: Vec<u8>,
     chr_rom: Vec<u8>,
-    mapper: Mapper
+    mapper: u8
+}
+
+impl Cartridge {
+    pub fn read(&mut self, address: u16) -> u8 {
+        let mapped = mapper.map(address);
+    }
+
+    pub fn write(&mut self, address: u16, value: u8) {
+        let mapped = mapper.map(address);
+    }
 }
 
 pub struct CartridgeLoader {
@@ -19,7 +25,7 @@ pub struct CartridgeLoader {
 }
 
 impl CartridgeLoader {
-    pub fn load_cartridge(payload: Vec<u8>) -> Cartridge {
+    pub fn load_cartridge(payload: Vec<u8>) -> Box<Cartridge> {
         let mut loader = CartridgeLoader { payload };
         loader::assert_constant(&payload);
         let mapper = loader.load_mapper();
@@ -42,7 +48,7 @@ impl CartridgeLoader {
         }
     }
 
-    fn load_mapper(&mut self) -> Mapper {
+    fn load_mapper(&mut self) -> u8 {
         let lower_mapper_flag = 6;
         let upper_mapper_flag = 7;
         let lower_nibble = (self.payload[lower_mapper_flag] & 0x10) >> 4;
