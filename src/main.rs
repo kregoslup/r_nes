@@ -9,6 +9,7 @@ mod util;
 mod flags;
 mod cartridge;
 mod ppu;
+mod emulator;
 
 fn main() {
     println!("Hello, world!");

@@ -32,11 +32,11 @@ impl Bus {
         }
     }
 
-    pub fn fetch(&self, address: u16) -> u8 {
+    pub fn fetch(&mut self, address: u16) -> u8 {
         if self.is_ram(address) {
             self.memory[self.as_ram_address(address) as usize]
         } else if self.is_ppu(address) {
-            ppu.fetch(self.as_ppu_address(address))
+            self.ppu.fetch(self.as_ppu_address(address))
         } else if self.is_cartridge(address) {
             unimplemented!();
         } else {
@@ -44,11 +44,13 @@ impl Bus {
         }
     }
 
+    // Only CPU writes to bus
     pub fn store(&mut self, value: u8, address: u16) {
         if self.is_ram(address) {
-            self.memory[self.as_ram_address(address) as usize] = value;
+            let as_ram_address = self.as_ram_address(address) as usize;
+            self.memory[as_ram_address] = value;
         } else if self.is_ppu(address) {
-            ppu.save(self.as_ppu_address(address), value)
+            self.ppu.save(self.as_ppu_address(address), value)
         } else if self.is_cartridge(address) {
             unimplemented!();
         } else {
@@ -74,26 +76,5 @@ impl Bus {
 
     fn as_ppu_address(&self, address: u16) -> u16 {
         return address & PPU_MIRROR_BOUNDARY
-    }
-}
-
-fn read_file(path: &Path) -> Vec<u8> {
-    let mut file = File::open(path).unwrap();
-    let mut data = Vec::new();
-    file.read_to_end(&mut data);
-    return data;
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    // TODO: Needs refactor for CI
-    #[test]
-    #[ignore]
-    fn test_read_file() {
-        let mut tmp_dir = home_dir().unwrap();
-        tmp_dir.push(".bash_history");
-        assert_ne!(read_file(tmp_dir.as_path()).len(), 0)
     }
 }

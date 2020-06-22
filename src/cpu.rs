@@ -11,7 +11,7 @@ use std::{u8, fmt};
 use std::borrow::Borrow;
 use bitflags::_core::fmt::{Formatter, Error};
 
-struct Cpu {
+pub struct Cpu {
     stack_pointer: u8,
     program_counter: u16,
     acc: u8,
@@ -49,6 +49,10 @@ impl Cpu {
             status: Default::default(),
             bus
         }
+    }
+
+    pub fn tick() {
+        unimplemented!();
     }
 
     fn set_carry(&mut self, result: u16) {
@@ -821,10 +825,19 @@ impl Cpu {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
+    use crate::ppu::Ppu;
+    use crate::cartridge::Cartridge;
+
+    fn create_test_bus(input: Vec<u8>) -> Bus {
+        let ppu = Ppu::new();
+        let cartridge = Cartridge::new();
+        return Bus::new(input, ppu, cartridge);
+    }
 
     fn create_test_cpu(input: Vec<u8>) -> Cpu {
-        let mut bus = Bus::new(input);
+        let mut bus = create_test_bus(input);
         Cpu::new(bus)
     }
 
