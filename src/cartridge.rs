@@ -5,9 +5,9 @@ trait Mapper {
 }
 
 #[derive(Debug)]
-struct Mapper001 {}
+struct Mapper000 {}
 
-impl Mapper for Mapper001 {
+impl Mapper for Mapper000 {
 
     fn map(prg_rom: &Vec<u8>, chr_rom: &Vec<u8>, address: u16) -> u8 {
         let boundary = 0x7FFF;
@@ -20,9 +20,10 @@ impl Mapper for Mapper001 {
 
 #[derive(Debug)]
 pub struct Cartridge {
+    prg_rom_banks: u8,
     prg_rom: Vec<u8>,
     chr_rom: Vec<u8>,
-    mapper_code: u8
+    mapper_code: u8,
 }
 
 impl Cartridge {
@@ -32,7 +33,8 @@ impl Cartridge {
         return Cartridge {
             prg_rom: vec![],
             chr_rom: vec![],
-            mapper_code: 0
+            mapper_code: 0,
+            prg_rom_banks: 0
         }
     }
 
@@ -47,7 +49,7 @@ impl Cartridge {
 
     fn map_address(&mut self, address: u16) -> u8 {
         match self.mapper_code {
-            000 => Mapper001::map(&self.prg_rom, &self.chr_rom, address),
+            000 => Mapper000::map(&self.prg_rom, &self.chr_rom, address),
             _ => panic!("Unknown mapper code")
         }
     }
@@ -64,11 +66,13 @@ impl CartridgeLoader {
         loader.assert_constant();
         let mapper_code = loader.load_mapper();
         let prg_rom = loader.load_prg();
+        let prg_rom_banks = loader.prg_size();
         let chr_rom = loader.load_chr();
         return Cartridge {
+            prg_rom_banks,
             prg_rom,
             chr_rom,
-            mapper_code
+            mapper_code,
         }
     }
 
