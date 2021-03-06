@@ -790,9 +790,12 @@ impl Cpu {
     fn sub_with_borrow(&mut self, addressing: Addressing) -> u8 {
         let mut cycles = 2;
         let (value, _) = self.fetch_with_addressing_mode(&addressing);
-        let borrow = self.get_borrow();
         let carry = if self.status.contains(Flags::CARRY) { 0 } else { 1 };
-        let mut result = Wrapping(self.acc as u16) - (Wrapping(value as u16) - Wrapping(carry));
+        println!("{}", value);
+        println!("{} carry", carry);
+        println!("{} acc", self.acc);
+        let mut result = (Wrapping(self.acc as u16) - (Wrapping(value as u16)) - Wrapping(carry));
+        println!("{}", result.0);
         self.set_borrow(result.0);
         self.set_zero(result.0 % 256);
         self.set_negative(result.0 % 256);
