@@ -105,8 +105,8 @@ impl Cpu {
         }
     }
 
-    fn set_overflow(&mut self, lhs: u8, rhs: u8, result: u16) {
-        if self.overflow_occurred(lhs, rhs, (result as u8)) {
+    fn set_overflow(&mut self, lhs: u8, rhs: u8, result: u16, add: bool) {
+        if self.overflow_occurred(lhs, rhs, (result as u8), add) {
             self.status.insert(Flags::OVERFLOW)
         } else {
             self.status.remove(Flags::OVERFLOW)
@@ -749,8 +749,12 @@ impl Cpu {
         (result, overflow | carry_overflow)
     }
 
-    fn overflow_occurred(&self, lhs: u8, rhs: u8, result: u8) -> bool {
-        (((lhs.bitxor(result)) & (rhs.bitxor(result))) & 0x80) != 0
+    fn overflow_occurred(&self, lhs: u8, rhs: u8, result: u8, add: bool) -> bool {
+        if add {
+            (((lhs.bitxor(result)) & (rhs.bitxor(result))) & 0x80) != 0
+        } else {
+            ((lhs.bitxor(result)) & (lhs.bitxor(rhs)) & 0x80) != 0
+        }
     }
 
     fn compare(&mut self, addressing: Addressing, target: u8) -> u8 {
@@ -776,7 +780,7 @@ impl Cpu {
         self.set_carry(result);
         self.set_zero(result % 256);
         self.set_negative(result);
-        self.set_overflow(self.acc, value, result);
+        self.set_overflow(self.acc, value, result, true);
         self.acc = (result % 256) as u8;
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, true);
         self.program_counter += 1;
@@ -791,8 +795,8 @@ impl Cpu {
         let mut result = Wrapping(self.acc as u16) - (Wrapping(value as u16) - Wrapping(carry));
         self.set_borrow(result.0);
         self.set_zero(result.0 % 256);
-        self.set_negative(result.0);
-        self.set_overflow(self.acc, value, result.0);
+        self.set_negative(result.0 % 256);
+        self.set_overflow(self.acc, value, result.0, false);
 
         self.acc = (result.0 % 256) as u8;
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, true);
