@@ -3,8 +3,9 @@ use std::fs::File;
 use std::io::Read;
 use dirs::home_dir;
 use std::fmt::Debug;
-use crate::cartridge::Cartridge;
+use crate::cartridge::{Cartridge, CartridgeLoader};
 use crate::ppu::Ppu;
+use crate::cpu::Cpu;
 
 static RAM_MIRROR_BOUNDARY: u16 = 0x07FF;
 static RAM_BOUNDARY: u16 = 0x1FFF;
@@ -19,17 +20,24 @@ static MEMORY_MAP_BOUNDARY: u16 = 0xFFFF;
 pub struct Bus {
     memory: Vec<u8>,
     ppu: Ppu,
-    cartridge: Cartridge
+    cartridge: Cartridge,
+    pub nmi: bool
 }
 
 impl Bus {
-
-    pub fn new(memory: Vec<u8>, ppu: Ppu, cartridge: Cartridge) -> Bus {
+    pub(crate) fn new(memory: Vec<u8>, ppu: Ppu, cartridge: Cartridge) -> Bus {
         Bus {
             memory,
             ppu,
-            cartridge
+            cartridge,
+            nmi: false
         }
+    }
+
+    pub fn emulate(&mut self) {
+        let previous_state = self.ppu.nmi_occurred;
+        self.ppu.emulate();
+        self.nmi = !previous_state & self.ppu.nmi_occurred;
     }
 
     pub fn fetch(&mut self, address: u16) -> u8 {
@@ -38,16 +46,16 @@ impl Bus {
         } else if self.is_ppu(address) {
             self.ppu.fetch(self.as_ppu_address(address))
         } else if self.is_cartridge(address) {
-            unimplemented!();
+            self.cartridge.cpu_read(address)
         } else {
             panic!("Memory address not supported, {:#01X}", address)
         }
     }
 
-    // Only CPU writes to bus
     pub fn store(&mut self, value: u8, address: u16) {
         if self.is_ram(address) {
             let as_ram_address = self.as_ram_address(address) as usize;
+            println!("Storing value {:#01X} at address {:#01X}", value, as_ram_address);
             self.memory[as_ram_address] = value;
         } else if self.is_ppu(address) {
             self.ppu.save(self.as_ppu_address(address), value)

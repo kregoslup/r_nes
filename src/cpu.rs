@@ -1,3 +1,4 @@
+// TODO: Disable warnings
 use crate::op_code::OpCode;
 use crate::addressing::AddressingMode::{IndexedIndirect, ZeroPage, Immediate, IndirectIndexed, ZeroPageIndexed, Absolute, AbsoluteIndexed, Accumulator, Indirect, Relative, Implied};
 use crate::bus::Bus;
@@ -10,6 +11,12 @@ use bitflags::_core::num::Wrapping;
 use std::{u8, fmt};
 use std::borrow::Borrow;
 use bitflags::_core::fmt::{Formatter, Error};
+use crate::cartridge::{CartridgeLoader, Cartridge};
+use std::path::Path;
+use std::fs::File;
+use std::fmt::Write as FmtWrite;
+use std::io::Write as IoWrite;
+use std::fmt::UpperHex;
 
 pub struct Cpu {
     stack_pointer: u8,
@@ -19,28 +26,30 @@ pub struct Cpu {
     reg_y: u8,
     status: Flags,
     cycles: u8,
-    bus: Bus
+    bus: Bus,
 }
 
 impl fmt::Debug for Cpu {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         f.debug_struct("Cpu")
+            .field("stack_pointer_hex", &format_args!("{:#01X}", self.stack_pointer))
             .field("stack_pointer_dec", &self.stack_pointer)
-            .field("stack_pointer_hex", &format_args!("{:#01X}", self.stack_pointer))            .field("stack_pointer_dec", &self.stack_pointer)
             .field("program_counter_dec", &self.program_counter)
             .field("program_counter_hex", &format_args!("{:#01X}", self.program_counter))
-            .field("acc", &self.acc)
-            .field("reg_x", &self.reg_x)
-            .field("reg_y", &self.reg_y)
+            .field("acc", &format_args!("{:#01X}", self.acc))
+            .field("reg_x", &format_args!("{:#01X}", self.reg_x))
+            .field("reg_y", &format_args!("{:#01X}", self.reg_y))
             .field("status", &format_args!("{:?}", self.status))
+            .field("status", &format_args!("{:#01X}", self.status))
+            .field("cycles", &self.cycles)
             .finish()
     }
 }
 
 impl Cpu {
-    pub fn new(bus: Bus) -> Cpu {
-        Cpu {
-            stack_pointer: 0xff,
+    pub fn new(bus: Bus, program_counter: Option<u16>) -> Cpu {
+        let mut cpu = Cpu {
+            stack_pointer: 0xfd,
             program_counter: 0,
             acc: 0,
             reg_x: 0,
@@ -48,11 +57,28 @@ impl Cpu {
             cycles: 0,
             status: Default::default(),
             bus
+        };
+        match program_counter { // TODO: Implement reset vector handling
+            Some(x) => cpu.program_counter = x,
+            None          => cpu.startup()
+        }
+        cpu
+    }
+
+    pub fn emulation_loop(&mut self) {
+        let mut counter = 0;
+        let path = "testing/output.txt";
+        let mut output = File::create(path).unwrap();
+        loop { // TODO: Turning off, exiting, etc
+            self.emulate(&output);
+            self.bus.emulate();
         }
     }
 
-    pub fn tick() {
-        unimplemented!();
+    fn startup(&mut self) { // TODO: Reset vector?
+        let msb = self.fetch(0xFFFD);
+        let lsb = self.fetch(0xFFFC);
+        self.program_counter = combine_u8(lsb, msb);
     }
 
     fn set_carry(&mut self, result: u16) {
@@ -98,12 +124,9 @@ impl Cpu {
     fn indexed_indirect_address(&mut self) -> u16 {
         self.program_counter += 1;
         let indirect_address = self.fetch(self.program_counter + (self.reg_x as u16)) as u16;
-        println!("Fetching indexed indirect address {:#01X}", indirect_address);
         let lsb = self.fetch(indirect_address);
         let msb = self.fetch(indirect_address + 1);
-        println!("Combining msb {:#01X} and lsb {:#01X} to address", msb, lsb);
         let address = combine_u8(lsb, msb);
-        println!("Fetching address {:#01X}", address);
         address
     }
 
@@ -124,18 +147,14 @@ impl Cpu {
         let lsb = self.fetch(self.program_counter);
         self.program_counter += 1;
         let msb = self.fetch(self.program_counter);
-        println!("Combining addresses, lsb: {}, msb: {}", lsb, msb);
-        println!("Fetching absolute address {}", combine_u8(lsb, msb));
         combine_u8(lsb, msb)
     }
 
     fn indirect_indexed_address(&mut self) -> u16 {
         self.program_counter += 1;
         let indirect_address = (self.fetch(self.program_counter) as u16);
-        println!("Fetched indirect address {:#01X} at memory location {:#01X}", indirect_address, self.program_counter);
-        // TODO: Add carry
+        // TODO: Add carry, WTF?
         let address = indirect_address + (self.reg_y as u16);
-        println!("Created address {:#01X}", address);
         address
     }
 
@@ -147,7 +166,6 @@ impl Cpu {
             Some(AddressingRegistry::Y) => self.reg_y,
             _ => panic!("Addressing registry has to be filled")
         };
-        println!("Fetching indexed address {:#01X} created from {:#01X} and {:#01X}", (base as u16) + (to_add as u16), base, to_add);
         (base as u16) + (to_add as u16)
     }
 
@@ -220,7 +238,8 @@ impl Cpu {
     }
 
     fn fetch(&mut self, address: u16) -> u8 {
-        self.bus.fetch(address)
+        let value = self.bus.fetch(address);
+        return value
     }
 
     fn store(&mut self, value: u8, address: Option<u16>) {
@@ -250,7 +269,10 @@ impl Cpu {
     }
 
     fn read_flags_from_stack(&mut self) -> Flags {
-        self.pull_from_stack().into()
+        let mut flags: Flags = self.pull_from_stack().into();
+        flags.remove(Flags::BRK);
+        flags.insert(Flags::PLACEHOLDER);
+        return flags
     }
 
     fn read_pc_from_stack(&mut self) -> u16 {
@@ -264,10 +286,46 @@ impl Cpu {
         self.fetch(self.stack_pointer as u16)
     }
 
-    // Returns cycles
+    pub fn emulate(&mut self, mut logfile: &File) {
+        if self.cycles != 0 {
+            self.cycles -= 1;
+        } else {
+            if self.bus.nmi {
+                self.cycles += self.nmi_interrupt();
+            } else {
+                let op_code = self.fetch(self.program_counter);
+                writeln!(
+                    logfile,
+                    "{} A:{} X:{} Y:{} P:{} SP:{}",
+                    self.debug_format(self.program_counter),
+                    self.debug_format(self.acc),
+                    self.debug_format(self.reg_x),
+                    self.debug_format(self.reg_y),
+                    self.debug_format(self.status),
+                    self.debug_format(self.stack_pointer)
+                );
+                println!("op code from address {:#01X}", self.program_counter);
+                                println!("cpu before: {:?}", self);
+                let result = self.evaluate(OpCode::new(op_code));
+                                println!("cpu after: {:?}", self);
+                println!("Cycles left: {}\n", result);
+                self.cycles += result;
+            }
+        }
+    }
+
+    fn debug_format(&mut self, value: impl UpperHex) -> String {
+        let formatted = format!("{:#01X}", value);
+        let stripped = formatted.strip_prefix("0x").unwrap();
+        if stripped.len() == 1 {
+            return String::from("0".to_owned() + stripped)
+        }
+        return String::from(stripped)
+    }
+
     pub fn evaluate(&mut self, op_code: OpCode) -> u8 {
         println!("Evaluating op code, hex: {:#02X}, bin: {:#08b}", op_code.value, op_code.value);
-        match op_code.value {
+        return match op_code.value {
             0x18 => self.clear_flag(Flags::CARRY),
             0xD8 => self.clear_flag(Flags::DECIMAL),
             0x58 => self.clear_flag(Flags::IRQ_DIS),
@@ -300,7 +358,7 @@ impl Cpu {
 
     fn decode_op_code(&mut self, op_code: OpCode) -> u8 {
         let addressing = Addressing::from_op_code(op_code.mid_op_code(), op_code.lower_op_code());
-        match (op_code.upper_op_code(), op_code.mid_op_code(), op_code.lower_op_code()) {
+        return match (op_code.upper_op_code(), op_code.mid_op_code(), op_code.lower_op_code()) {
             (upper_op_code, 0b100, 0b000) => self.branch(addressing, upper_op_code),
             (0b000, _, 0b1) => self.bitwise_instruction(addressing, BitOr::bitor, false),
             (0b001, _, 0b1) => self.bitwise_instruction(addressing, BitAnd::bitand, true),
@@ -330,32 +388,26 @@ impl Cpu {
     }
 
     fn noop(&mut self) -> u8 {
-        println!("NOOP instruction");
         let cycles = 2;
+        self.program_counter += 1;
         cycles
     }
 
     fn clear_flag(&mut self, flag: Flags) -> u8 {
-        println!("Clear flag instruction. Flag to clear: {}", flag);
-        println!("State before: {:?}", self);
         let cycles = 2;
         self.status.set_flag(false, flag);
-        println!("State after: {:?}", self);
+        self.program_counter += 1;
         cycles
     }
 
     fn set_flag(&mut self, flag: Flags) -> u8 {
-        println!("Set flag instruction. Flag to set: {}", flag);
-        println!("State before: {:?}", self);
         let cycles = 2;
         self.status.set_flag(true, flag);
-        println!("State after: {:?}", self);
+        self.program_counter += 1;
         cycles
     }
 
     fn transfer(&mut self, from: AddressingRegistry, into: AddressingRegistry) -> u8 {
-        println!("Transfer; from: {:?} to: {:?}", from, into);
-        println!("State before: {:?}", self);
         let cycles = 2;
         let from = match from {
             AddressingRegistry::X => self.reg_x,
@@ -373,51 +425,54 @@ impl Cpu {
             self.set_zero(from as u16);
             self.set_negative(from as u16);
         }
-        println!("State after: {:?}", self);
+        self.program_counter += 1;
+        cycles
+    }
+
+    fn nmi_interrupt(&mut self) -> u8 {
+        println!("Handling NMI interrupt");
+        let cycles = 2;
+        self.push_program_counter_on_stack();
+        self.push_flags_on_stack();
+        self.status.insert(Flags::IRQ_DIS);
+        let msb = self.fetch(0xFFFA);
+        let lsb = self.fetch(0xFFFB);
+        self.program_counter = combine_u8(lsb, msb);
         cycles
     }
 
     fn push_accumulator(&mut self) -> u8 {
-        println!("Puhsing accumulator on stack");
-        println!("State before: {:?}", self);
         let cycles = 3;
         self.push_on_stack(self.acc);
-        println!("State after: {:?}", self);
+        self.program_counter += 1;
         cycles
     }
 
     fn pull_accumulator(&mut self) -> u8 {
-        println!("Pulling accumulator from stack");
-        println!("State before: {:?}", self);
         let cycles = 3;
+        println!("stack: {:01X}", self.fetch(self.stack_pointer as u16));
         self.acc = self.pull_from_stack();
         self.set_zero(self.acc as u16);
         self.set_negative(self.acc as u16);
-        println!("State after: {:?}", self);
+        self.program_counter += 1;
         cycles
     }
 
     fn push_processor_status(&mut self) -> u8 {
-        println!("Pushing processor status");
-        println!("State before: {:?}", self);
         let cycles = 3;
         self.push_flags_on_stack();
-        println!("State after: {:?}", self);
+        self.program_counter += 1;
         cycles
     }
 
     fn pull_processor_status(&mut self) -> u8 {
-        println!("Pulling processor status");
-        println!("State before: {:?}", self);
         let cycles = 3;
         self.status = self.read_flags_from_stack();
-        println!("State after: {:?}", self);
+        self.program_counter += 1;
         cycles
     }
 
     fn branch(&mut self, addressing: Addressing, branch_instruction: u8) -> u8 {
-        println!("Branching");
-        println!("State before: {:?}", self);
         let mut cycles = 2;
         let branch_flag = self.extract_branch_flag(branch_instruction);
         let branch_equality = self.extract_branch_equality(branch_instruction);
@@ -434,41 +489,39 @@ impl Cpu {
         if new_page {
             cycles += 1;
         }
-        println!("State after: {:?}", self);
+        self.program_counter += 1;
         cycles
     }
 
     fn extract_branch_flag(&mut self, branch_instruction: u8) -> u8 {
-        let higher_bit = nth_bit(branch_instruction, 1) as u8;
-        let lower_bit = nth_bit(branch_instruction, 2) as u8;
-        ((1 << higher_bit) as u8) | lower_bit
+        let higher_bit = nth_bit(branch_instruction, 2) as u8;
+        let lower_bit = nth_bit(branch_instruction, 1) as u8;
+        ((higher_bit << 1) as u8) | lower_bit
     }
 
     fn extract_branch_equality(&mut self, branch_instruction: u8) -> bool {
-        nth_bit(branch_instruction, 3)
+        nth_bit(branch_instruction, 0)
     }
 
     fn branch_on_flag(&mut self, addressing: Addressing, branch_equality: bool, flag: Flags) -> (bool, bool) {
         let mut succeeded = false;
         let (raw_branch_offset, _) = self.fetch_with_addressing_mode(&addressing);
         let branch_offset = raw_branch_offset as i8;
-        println!("Branch offset: {}", branch_offset);
         let flag = self.status.contains(flag);
-        if (branch_equality && flag) | (!branch_equality & !flag) {
-            self.program_counter += branch_offset as u16;
+        if flag == branch_equality {
+            self.program_counter = self.program_counter.wrapping_add(branch_offset as u16);
             succeeded = true;
         };
         (succeeded, self.is_on_different_page(self.program_counter, self.program_counter + 1))
     }
 
     fn bit_test(&mut self, addressing: Addressing) -> u8 {
-        println!("Bit testing");
-        println!("State before: {:?}", self);
         let mut cycles = 3;
         let (to_test, _) = self.fetch_with_addressing_mode(&addressing);
+        println!("to test: {:#01X}", to_test);
         let zero = (to_test & self.acc) == 0;
         let negative = msb(to_test) == 1;
-        let overflow = nth_bit(to_test, 6);
+        let overflow = nth_bit(to_test, 6); // TODO: Check if true
 
         self.status.set_flag(zero, Flags::ZERO);
         self.status.set_flag(negative, Flags::NEGATIVE);
@@ -477,68 +530,55 @@ impl Cpu {
         if addressing.mode == Absolute {
             cycles += 1;
         }
-        println!("State after: {:?}", self);
+        self.program_counter += 1;
         cycles
     }
 
     fn jump(&mut self, addressing: Addressing) -> u8 {
-        println!("Jumping");
-        println!("State before: {:?}", self);
         let mut cycles = 3;
         self.program_counter = self.fetch_address(&addressing);
 
         if addressing.mode == Indirect {
             cycles += 2;
         }
-        println!("State after: {:?}", self);
         cycles
     }
 
     fn jump_to_subroutine(&mut self, addressing: Addressing) -> u8 {
-        println!("Jumping to subroutine");
-        println!("State before: {:?}", self);
         let mut cycles = 6;
         let new_pc = self.fetch_address(&addressing);
-        println!("New program counter: {}", new_pc);
-        self.program_counter -= 3;
+        // TODO: Possible error here?
         self.push_program_counter_on_stack();
         self.program_counter = new_pc;
-        println!("State after: {:?}", self);
         cycles
     }
 
     fn return_from(&mut self, read_flags: bool) -> u8 {
-        println!("Returning from subroutine. Read flags: {}", read_flags);
-        println!("State before: {:?}", self);
         let mut cycles = 6;
         if read_flags {
             self.status = self.read_flags_from_stack();
         }
         let mut new_pc = self.read_pc_from_stack();
-        if !read_flags {
+        if read_flags {
+            // TODO: Probably error here
             new_pc -= 1;
         }
-        self.program_counter = new_pc;
-        println!("State after: {:?}", self);
+        self.program_counter = new_pc + 1;
         cycles
     }
 
     fn store_register(&mut self, addressing: Addressing, target: u8) -> u8 {
-        println!("Storing register");
-        println!("State before: {:?}", self);
         let mut cycles = 3;
         let fixed_addressing = addressing.to_register_specific_addressing();
         let address = self.fetch_address(&fixed_addressing);
         self.store(target, Some(address));
 
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, false);
-        println!("State after: {:?}", self);
+        self.program_counter += 1;
         cycles
     }
 
     fn offset_register_by_one(&mut self, addressing: Addressing, increment: bool) -> u8 {
-        println!("Offset register by one. Register: {:?}, increment: {}", addressing.register, increment);
-        println!("State before: {:?}", self);
         let mut cycles = 2;
         match addressing.register {
             Some(AddressingRegistry::X) => {
@@ -554,20 +594,18 @@ impl Cpu {
                 self.acc = result;
             }
         };
-        println!("State after: {:?}", self);
+        self.program_counter += 1;
         cycles
     }
 
     fn offset_memory_by_one(&mut self, addressing: Addressing, increment: bool) -> u8 {
-        println!("Offsetting memory by one. Increment: {}", increment);
-        println!("State before: {:?}", self);
         let mut cycles = 2;
         let (mut value, address) = self.fetch_with_addressing_mode(&addressing);
         let result = self.offset_by_one(value, increment);
         self.store(result, address);
 
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, false);
-        println!("State after: {:?}", self);
+        self.program_counter += 1;
         cycles
     }
 
@@ -585,8 +623,8 @@ impl Cpu {
     }
 
     fn load_register(&mut self, addressing: Addressing, target: AddressingRegistry) -> u8 {
-        println!("Loading register {:?}", target);
-        println!("State before: {:?}", self);
+        // TODO: Spierdolona flaga
+        println!("cpu before: {:?}", self);
         let mut cycles = 2;
         let fixed_addressing = addressing.to_register_specific_addressing();
         let (value, _) = self.fetch_with_addressing_mode(&fixed_addressing);
@@ -597,14 +635,13 @@ impl Cpu {
         } else {
             self.reg_y = value;
         }
+        println!("cpu after: {:?}", self);
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, true);
-        println!("State after: {:?}", self);
+        self.program_counter += 1;
         cycles
     }
 
     fn shift_left(&mut self, addressing: Addressing) -> u8 {
-        println!("Shifting left");
-        println!("State before: {:?}", self);
         let mut cycles = 2;
         let (value, address) = self.fetch_with_addressing_mode(&addressing);
         let (result, carry) = value.overflowing_mul(2);
@@ -614,13 +651,11 @@ impl Cpu {
         self.status.set_flag(carry, Flags::CARRY);
 
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, false);
-        println!("State after: {:?}", self);
+        self.program_counter += 1;
         cycles
     }
 
     fn logical_shift_right(&mut self, addressing: Addressing) -> u8 {
-        println!("Shifting right");
-        println!("State before: {:?}", self);
         let mut cycles = 2;
         let (value, address) = self.fetch_with_addressing_mode(&addressing);
         let carry = lsb(value) == 1;
@@ -631,13 +666,11 @@ impl Cpu {
         self.status.set_flag(carry, Flags::CARRY);
 
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, false);
-        println!("State after: {:?}", self);
+        self.program_counter += 1;
         cycles
     }
 
     fn rotate_left(&mut self, addressing: Addressing) -> u8 {
-        println!("Rotating left");
-        println!("State before: {:?}", self);
         let mut cycles = 2;
         let (value, address) = self.fetch_with_addressing_mode(&addressing);
         let carry = msb(value) == 1;
@@ -649,13 +682,11 @@ impl Cpu {
         self.set_rotation_flags(result, carry);
 
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, false);
-        println!("State after: {:?}", self);
+        self.program_counter += 1;
         cycles
     }
 
     fn rotate_right(&mut self, addressing: Addressing) -> u8 {
-        println!("Rotating right");
-        println!("State before: {:?}", self);
         let mut cycles = 2;
         let (value, address) = self.fetch_with_addressing_mode(&addressing);
         let carry = lsb(value) == 1;
@@ -667,7 +698,7 @@ impl Cpu {
         self.set_rotation_flags(result, carry);
 
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, false);
-        println!("State after: {:?}", self);
+        self.program_counter += 1;
         cycles
     }
 
@@ -678,8 +709,6 @@ impl Cpu {
     }
 
     fn force_break(&mut self) -> u8 {
-        println!("Force break, saving cpu status on stack");
-        println!("State before: {:?}", self);
         let cycles = 7;
         self.program_counter += 1;
         self.status.set_flag(true, Flags::BRK);
@@ -690,31 +719,27 @@ impl Cpu {
         let lsb = self.fetch(0xFFFF);
         self.program_counter = combine_u8(lsb, msb);
         self.status.set_flag(false, Flags::BRK);
-        println!("State after: {:?}", self);
+        self.program_counter += 1;
         cycles
     }
 
     fn store_accumulator(&mut self, addressing: Addressing) -> u8 {
-        println!("Storing accumulator");
-        println!("State before: {:?}", self);
         let mut cycles = 2;
         let address = self.fetch_address(&addressing);
         self.store(self.acc, Some(address));
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, false);
-        println!("State after: {:?}", self);
+        self.program_counter += 1;
         cycles
     }
 
     fn load_accumulator(&mut self, addressing: Addressing) -> u8 {
-        println!("Loading accumulator");
-        println!("State before: {:?}", self);
         let mut cycles = 2;
         let (value, _) = self.fetch_with_addressing_mode(&addressing);
         self.set_negative(value as u16);
         self.set_zero(value as u16);
         self.acc = value;
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, true);
-        println!("State after: {:?}", self);
+        self.program_counter += 1;
         cycles
     }
 
@@ -729,8 +754,6 @@ impl Cpu {
     }
 
     fn compare(&mut self, addressing: Addressing, target: u8) -> u8 {
-        println!("Comparing");
-        println!("State before: {:?}", self);
         let mut cycles = 2;
         let (value, _) = self.fetch_with_addressing_mode(&addressing);
         let mut result = (Wrapping(target) - Wrapping(value)).0;
@@ -742,49 +765,42 @@ impl Cpu {
         self.status.set_flag(zero, Flags::ZERO);
 
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, false);
-        println!("State after: {:?}", self);
+        self.program_counter += 1;
         cycles
     }
 
     fn add_with_carry(&mut self, addressing: Addressing) -> u8 {
-        println!("Add with carry");
-        println!("State before: {:?}", self);
         let mut cycles = 2;
         let (value, _) = self.fetch_with_addressing_mode(&addressing);
         let mut result = (self.acc as u16) + (value as u16) + (self.status.contains(Flags::CARRY) as u16);
         self.set_carry(result);
-        self.set_zero(result);
+        self.set_zero(result % 256);
         self.set_negative(result);
         self.set_overflow(self.acc, value, result);
-
         self.acc = (result % 256) as u8;
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, true);
-        println!("State after: {:?}", self);
+        self.program_counter += 1;
         cycles
     }
 
     fn sub_with_borrow(&mut self, addressing: Addressing) -> u8 {
-        println!("Sub with borrow");
-        println!("State before: {:?}", self);
         let mut cycles = 2;
         let (value, _) = self.fetch_with_addressing_mode(&addressing);
         let borrow = self.get_borrow();
-        let mut result = Wrapping(self.acc as u16) - (Wrapping(value as u16) - Wrapping(self.status.contains(Flags::CARRY) as u16));
+        let carry = if self.status.contains(Flags::CARRY) { 0 } else { 1 };
+        let mut result = Wrapping(self.acc as u16) - (Wrapping(value as u16) - Wrapping(carry));
         self.set_borrow(result.0);
-        self.set_zero(result.0);
+        self.set_zero(result.0 % 256);
         self.set_negative(result.0);
         self.set_overflow(self.acc, value, result.0);
 
-        self.acc = result.0 as u8;
+        self.acc = (result.0 % 256) as u8;
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, true);
-        println!("State after: {:?}", self);
-
+        self.program_counter += 1;
         cycles
     }
 
     fn bitwise_instruction(&mut self, addressing: Addressing, operation: fn(u8, u8) -> u8, additional_cycle: bool) -> u8 {
-        println!("Executing bitwise operation");
-        println!("State before: {:?}", self);
         let mut cycles = 2;
         let (value, _) = self.fetch_with_addressing_mode(&addressing);
         self.acc = operation(self.acc, value);
@@ -792,8 +808,7 @@ impl Cpu {
 
         self.set_zero(self.acc as u16);
         self.set_negative(self.acc as u16);
-        println!("State after: {:?}", self);
-
+        self.program_counter += 1;
         cycles
     }
 
@@ -831,7 +846,7 @@ mod tests {
     use crate::cartridge::Cartridge;
 
     fn create_test_bus(input: Vec<u8>) -> Bus {
-        let ppu = Ppu::new();
+        let ppu = Ppu::new(vec![], vec![]);
         let cartridge = Cartridge::new();
         return Bus::new(input, ppu, cartridge);
     }

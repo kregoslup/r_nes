@@ -16,7 +16,7 @@ bitflags! {
 
 impl Default for Flags {
     fn default() -> Flags {
-        Flags::PLACEHOLDER
+        Flags::PLACEHOLDER | Flags::IRQ_DIS
     }
 }
 

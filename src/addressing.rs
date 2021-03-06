@@ -131,7 +131,7 @@ impl Addressing {
     }
 
     pub fn from_op_code(mid_op_code: u8, lower_op_code: u8) -> Addressing {
-        println!("Extracting addressing from {:#010b}", mid_op_code);
+//        println!("Extracting addressing from {:#010b}", mid_op_code); // TODO: Probably useless
         match (mid_op_code, lower_op_code) {
             // c == 0b10
             (0b0, 0b01) => Addressing::indexed_indirect(),

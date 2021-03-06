@@ -30,6 +30,48 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_get_first_bit() {
+        let value: u8 = 0b00_01_00_00;
+        println!("{:?} 7", nth_bit(value, 7));
+        println!("{:?} 6", nth_bit(value, 6));
+        println!("{:?} 5", nth_bit(value, 5));
+        println!("{:?} 4", nth_bit(value, 4));
+        println!("{:?} 3", nth_bit(value, 3));
+        println!("{:?} 2", nth_bit(value, 2));
+        println!("{:?} 1", nth_bit(value, 1));
+        println!("{:?} 0", nth_bit(value, 0));
+        assert_eq!(nth_bit(value, 7) as u8, 0);
+        assert_eq!(nth_bit(value, 6) as u8, 0);
+        assert_eq!(nth_bit(value, 5) as u8, 0);
+        assert_eq!(nth_bit(value, 4) as u8, 1);
+        assert_eq!(nth_bit(value, 3) as u8, 0);
+        assert_eq!(nth_bit(value, 2) as u8, 0);
+        assert_eq!(nth_bit(value, 1) as u8, 0);
+        assert_eq!(nth_bit(value, 0) as u8, 0)
+    }
+
+    #[test]
+    fn test_get_first_bit_v2() {
+        let value: u8 = 0b00_00_00_01;
+        println!("{:?} 7", nth_bit(value, 7));
+        println!("{:?} 6", nth_bit(value, 6));
+        println!("{:?} 5", nth_bit(value, 5));
+        println!("{:?} 4", nth_bit(value, 4));
+        println!("{:?} 3", nth_bit(value, 3));
+        println!("{:?} 2", nth_bit(value, 2));
+        println!("{:?} 1", nth_bit(value, 1));
+        println!("{:?} 0", nth_bit(value, 0));
+        assert_eq!(nth_bit(value, 7) as u8, 0);
+        assert_eq!(nth_bit(value, 6) as u8, 0);
+        assert_eq!(nth_bit(value, 5) as u8, 0);
+        assert_eq!(nth_bit(value, 4) as u8, 0);
+        assert_eq!(nth_bit(value, 3) as u8, 0);
+        assert_eq!(nth_bit(value, 2) as u8, 0);
+        assert_eq!(nth_bit(value, 1) as u8, 0);
+        assert_eq!(nth_bit(value, 0) as u8, 1)
+    }
+
+    #[test]
     fn test_combine_u8() {
         let lsb = 0x12;
         let msb = 0x34;
