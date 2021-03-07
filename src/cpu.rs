@@ -264,7 +264,7 @@ impl Cpu {
     }
 
     fn push_on_stack(&mut self, value: u8) {
-        self.store(value, Some(self.stack_pointer as u16));
+        self.store(value, Some((self.stack_pointer as u16) + 0x100));
         self.stack_pointer -= 1;
     }
 
@@ -283,7 +283,8 @@ impl Cpu {
 
     fn pull_from_stack(&mut self) -> u8 {
         self.stack_pointer += 1;
-        self.fetch(self.stack_pointer as u16)
+        // TODO: Find a fancier way to offset stack pointer
+        self.fetch((self.stack_pointer as u16 + 0x100))
     }
 
     pub fn emulate(&mut self, mut logfile: &File) {
@@ -304,11 +305,9 @@ impl Cpu {
                     self.debug_format(self.status),
                     self.debug_format(self.stack_pointer)
                 );
-                println!("op code from address {:#01X}", self.program_counter);
-                                println!("cpu before: {:?}", self);
+                println!("cpu before: {:?}", self);
                 let result = self.evaluate(OpCode::new(op_code));
-                                println!("cpu after: {:?}", self);
-                println!("Cycles left: {}\n", result);
+                println!("cpu after: {:?}", self);
                 self.cycles += result;
             }
         }
@@ -324,7 +323,7 @@ impl Cpu {
     }
 
     pub fn evaluate(&mut self, op_code: OpCode) -> u8 {
-        println!("Evaluating op code, hex: {:#02X}, bin: {:#08b}", op_code.value, op_code.value);
+        println!("\nEvaluating op code, hex: {:#02X}, bin: {:#08b}", op_code.value, op_code.value);
         return match op_code.value {
             0x18 => self.clear_flag(Flags::CARRY),
             0xD8 => self.clear_flag(Flags::DECIMAL),
@@ -734,7 +733,8 @@ impl Cpu {
 
     fn load_accumulator(&mut self, addressing: Addressing) -> u8 {
         let mut cycles = 2;
-        let (value, _) = self.fetch_with_addressing_mode(&addressing);
+        let (value, address) = self.fetch_with_addressing_mode(&addressing);
+
         self.set_negative(value as u16);
         self.set_zero(value as u16);
         self.acc = value;
@@ -791,11 +791,7 @@ impl Cpu {
         let mut cycles = 2;
         let (value, _) = self.fetch_with_addressing_mode(&addressing);
         let carry = if self.status.contains(Flags::CARRY) { 0 } else { 1 };
-        println!("{}", value);
-        println!("{} carry", carry);
-        println!("{} acc", self.acc);
         let mut result = (Wrapping(self.acc as u16) - (Wrapping(value as u16)) - Wrapping(carry));
-        println!("{}", result.0);
         self.set_borrow(result.0);
         self.set_zero(result.0 % 256);
         self.set_negative(result.0 % 256);

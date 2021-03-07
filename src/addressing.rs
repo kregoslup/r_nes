@@ -1,5 +1,6 @@
 use std::borrow::{BorrowMut, Borrow};
 
+#[derive(PartialEq, Copy, Clone, Debug)]
 pub struct Addressing {
     pub register: Option<AddressingRegistry>,
     pub add_cycles: bool,
