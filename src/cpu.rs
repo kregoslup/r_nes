@@ -123,10 +123,13 @@ impl Cpu {
 
     fn indexed_indirect_address(&mut self) -> u16 {
         self.program_counter += 1;
-        let indirect_address = self.fetch(self.program_counter + (self.reg_x as u16)) as u16;
-        let lsb = self.fetch(indirect_address);
-        let msb = self.fetch(indirect_address + 1);
+        let op_code_arg = self.fetch(self.program_counter);
+        // TODO: Add wrapping
+        let lsb = self.fetch(((op_code_arg + self.reg_x) & 0xFF) as u16);
+        let msb = self.fetch(((op_code_arg + self.reg_x + 1) & 0xFF) as u16);
+        println!("Dupa");
         let address = combine_u8(lsb, msb);
+        println!("address {:#01X} lsb {:#01X} msb {:#01X} from {:#01X}", address, lsb, msb, op_code_arg);
         address
     }
 
@@ -734,7 +737,7 @@ impl Cpu {
     fn load_accumulator(&mut self, addressing: Addressing) -> u8 {
         let mut cycles = 2;
         let (value, address) = self.fetch_with_addressing_mode(&addressing);
-
+        println!("{:#01X} from address {:#01X} addressing {:?}", value, address.unwrap(), addressing);
         self.set_negative(value as u16);
         self.set_zero(value as u16);
         self.acc = value;
