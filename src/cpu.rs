@@ -184,8 +184,10 @@ impl Cpu {
         self.program_counter += 1;
         let msb = self.fetch(self.program_counter);
 
-        let real_lsb = self.fetch(combine_u8(lsb, msb));
-        let real_msb = self.fetch(combine_u8(lsb, msb) + 1);
+        let real_lsb_address = combine_u8(lsb, msb);
+        let real_msb_address = combine_u8((Wrapping(lsb) + Wrapping(1)).0, msb);
+        let real_lsb = self.fetch(real_lsb_address);
+        let real_msb = self.fetch(real_msb_address);
 
         combine_u8(real_lsb, real_msb)
     }
