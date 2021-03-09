@@ -130,6 +130,15 @@ impl Cpu {
         address
     }
 
+    fn indirect_indexed_address(&mut self) -> u16 {
+        self.program_counter += 1;
+        let op_code_arg = self.fetch(self.program_counter);
+        let lsb = self.fetch(op_code_arg as u16);
+        let msb = self.fetch((Wrapping(op_code_arg) + Wrapping(1)).0 as u16);
+        let address = (Wrapping(combine_u8(lsb, msb)) + Wrapping(self.reg_y as u16)).0 as u16;
+        address
+    }
+
     fn zero_page_address(&mut self) -> u16 {
         self.program_counter += 1;
         let lsb = self.fetch(self.program_counter);
@@ -148,14 +157,6 @@ impl Cpu {
         self.program_counter += 1;
         let msb = self.fetch(self.program_counter);
         combine_u8(lsb, msb)
-    }
-
-    fn indirect_indexed_address(&mut self) -> u16 {
-        self.program_counter += 1;
-        let indirect_address = (self.fetch(self.program_counter) as u16);
-        // TODO: Add carry, WTF?
-        let address = indirect_address + (self.reg_y as u16);
-        address
     }
 
     fn indexed_address(&mut self, addressing: &Addressing) -> u16 {
