@@ -161,13 +161,15 @@ impl Cpu {
 
     fn indexed_address(&mut self, addressing: &Addressing) -> u16 {
         self.program_counter += 1;
-        let base = self.fetch(self.program_counter);
+        let lsb = self.fetch(self.program_counter);
+        self.program_counter += 1;
+        let msb = self.fetch(self.program_counter);
         let to_add = match addressing.register {
             Some(AddressingRegistry::X) => self.reg_x,
             Some(AddressingRegistry::Y) => self.reg_y,
             _ => panic!("Addressing registry has to be filled")
         };
-        (base as u16) + (to_add as u16)
+        (Wrapping((combine_u8(lsb, msb) as u16)) + Wrapping((to_add as u16))).0
     }
 
     fn zero_page_indexed_address(&mut self, addressing: &Addressing) -> u16 {
@@ -300,6 +302,7 @@ impl Cpu {
                 let op_code = self.fetch(self.program_counter);
                 writeln!(
                     logfile,
+                    // TODO: Fix length, add padding
                     "{} A:{} X:{} Y:{} P:{} SP:{}",
                     self.debug_format(self.program_counter),
                     self.debug_format(self.acc),
