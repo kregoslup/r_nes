@@ -173,7 +173,15 @@ impl Cpu {
     }
 
     fn zero_page_indexed_address(&mut self, addressing: &Addressing) -> u16 {
-        self.indexed_address(addressing) % 256
+        self.program_counter += 1;
+        let base = self.fetch(self.program_counter);
+        let to_add = match addressing.register {
+            Some(AddressingRegistry::X) => self.reg_x,
+            Some(AddressingRegistry::Y) => self.reg_y,
+            _ => panic!("Addressing registry has to be filled")
+        };
+        println!("addressing {:?} Base {:#01X}, to add {:#01X}, {:#01X}", addressing, base, to_add, (Wrapping(base) + Wrapping(to_add)).0);
+        (Wrapping(base) + Wrapping(to_add)).0 as u16
     }
 
     fn absolute_indexed_address(&mut self, addressing: &Addressing) -> u16 {
@@ -628,11 +636,10 @@ impl Cpu {
     }
 
     fn load_register(&mut self, addressing: Addressing, target: AddressingRegistry) -> u8 {
-        // TODO: Spierdolona flaga
         println!("cpu before: {:?}", self);
         let mut cycles = 2;
-        let fixed_addressing = addressing.to_register_specific_addressing();
-        let (value, _) = self.fetch_with_addressing_mode(&fixed_addressing);
+//        let fixed_addressing = addressing.to_register_specific_addressing();
+        let (value, _) = self.fetch_with_addressing_mode(&addressing);
         self.set_negative(value as u16);
         self.set_zero(value as u16);
         if target == AddressingRegistry::X {
