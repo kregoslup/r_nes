@@ -388,14 +388,14 @@ impl Cpu {
             (0b001, _, 0b10) => self.rotate_left(addressing),
             (0b010, _, 0b10) => self.logical_shift_right(addressing),
             (0b011, _, 0b10) => self.rotate_right(addressing),
-            (0b100, _, 0b10) => self.store_register(addressing, self.reg_x),
+            (0b100, _, 0b10) => self.store_register(addressing, AddressingRegistry::X),
             (0b101, _, 0b10) => self.load_register(addressing, AddressingRegistry::X),
             (0b110, _, 0b10) => self.offset_memory_by_one(addressing, false),
             (0b111, _, 0b10) => self.offset_memory_by_one(addressing, true),
             (0b001, _, 0b00) => self.bit_test(addressing),
             (0b010, _, 0b00) => self.jump(Addressing::absolute()),
             (0b011, _, 0b00) => self.jump(Addressing::indirect()),
-            (0b100, _, 0b00) => self.store_register(addressing, self.reg_y),
+            (0b100, _, 0b00) => self.store_register(addressing, AddressingRegistry::Y),
             (0b101, _, 0b00) => self.load_register(addressing, AddressingRegistry::Y),
             (0b110, _, 0b00) => self.compare(addressing, self.reg_y),
             (0b111, _, 0b00) => self.compare(addressing, self.reg_x),
@@ -583,13 +583,17 @@ impl Cpu {
         cycles
     }
 
-    fn store_register(&mut self, addressing: Addressing, target: u8) -> u8 {
+    fn store_register(&mut self, addressing: Addressing, target: AddressingRegistry) -> u8 {
         let mut cycles = 3;
-//        let fixed_addressing = addressing.to_register_specific_addressing();
-        let address = self.fetch_address(&addressing);
-        // NO FIXING?
-        println!("Storing {:#01X} at address  {:#01X}", target, address);
-        self.store(target, Some(address));
+        let adjusted_addressing = self.adjust_addressing(addressing, target);
+        let address = self.fetch_address(&adjusted_addressing);
+        let register_value = if target == AddressingRegistry::X {
+            self.reg_x
+        } else {
+            self.reg_y
+        };
+        println!("Storing {:#01X} at address  {:#01X}", register_value, address);
+        self.store(register_value, Some(address));
 
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, false);
         self.program_counter += 1;
