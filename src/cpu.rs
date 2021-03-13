@@ -143,6 +143,7 @@ impl Cpu {
         self.program_counter += 1;
         let lsb = self.fetch(self.program_counter);
         let address = lsb as u16;
+        println!("{:#01X} ADDRESS {:#01X}", lsb, address);
         address
     }
 
@@ -180,7 +181,6 @@ impl Cpu {
             Some(AddressingRegistry::Y) => self.reg_y,
             _ => panic!("Addressing registry has to be filled")
         };
-        println!("addressing {:?} Base {:#01X}, to add {:#01X}, {:#01X}", addressing, base, to_add, (Wrapping(base) + Wrapping(to_add)).0);
         (Wrapping(base) + Wrapping(to_add)).0 as u16
     }
 
@@ -582,8 +582,10 @@ impl Cpu {
 
     fn store_register(&mut self, addressing: Addressing, target: u8) -> u8 {
         let mut cycles = 3;
-        let fixed_addressing = addressing.to_register_specific_addressing();
-        let address = self.fetch_address(&fixed_addressing);
+//        let fixed_addressing = addressing.to_register_specific_addressing();
+        let address = self.fetch_address(&addressing);
+        // NO FIXING?
+        println!("Storing {:#01X} at address  {:#01X}", target, address);
         self.store(target, Some(address));
 
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, false);
