@@ -143,7 +143,6 @@ impl Cpu {
         self.program_counter += 1;
         let lsb = self.fetch(self.program_counter);
         let address = lsb as u16;
-        println!("{:#01X} ADDRESS {:#01X}", lsb, address);
         address
     }
 
@@ -174,6 +173,8 @@ impl Cpu {
     }
 
     fn zero_page_indexed_address(&mut self, addressing: &Addressing) -> u16 {
+        println!("here");
+        println!("{:?}", addressing);
         self.program_counter += 1;
         let base = self.fetch(self.program_counter);
         let to_add = match addressing.register {
@@ -181,6 +182,8 @@ impl Cpu {
             Some(AddressingRegistry::Y) => self.reg_y,
             _ => panic!("Addressing registry has to be filled")
         };
+        // TODO: +1 to cycle if wrapped
+        println!("base {:#01X} add {:#01X} result {:#01X}", base, to_add, (Wrapping(base) + Wrapping(to_add)).0 as u16);
         (Wrapping(base) + Wrapping(to_add)).0 as u16
     }
 
@@ -637,11 +640,25 @@ impl Cpu {
         result
     }
 
+    fn adjust_addressing(&mut self, addressing: Addressing, target: AddressingRegistry) -> Addressing {
+        // TODO: Move to addressing.rs. Use only in STX and LDX
+        println!("{:?} {:?}", addressing, target);
+        if target == AddressingRegistry::X {
+            if addressing.mode == ZeroPageIndexed && addressing.register == Some(AddressingRegistry::X) {
+                return Addressing::zero_page_indexed(Some(AddressingRegistry::Y), false)
+            }
+            if addressing.mode == Absolute && addressing.register == Some(AddressingRegistry::X) {
+                return Addressing::absolute_indexed(Some(AddressingRegistry::Y), false)
+            }
+        }
+        return addressing
+    }
+
     fn load_register(&mut self, addressing: Addressing, target: AddressingRegistry) -> u8 {
         println!("cpu before: {:?}", self);
         let mut cycles = 2;
-//        let fixed_addressing = addressing.to_register_specific_addressing();
-        let (value, _) = self.fetch_with_addressing_mode(&addressing);
+        let adjusted_addressing = self.adjust_addressing(addressing, target);
+        let (value, _) = self.fetch_with_addressing_mode(&adjusted_addressing);
         self.set_negative(value as u16);
         self.set_zero(value as u16);
         if target == AddressingRegistry::X {

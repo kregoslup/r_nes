@@ -112,26 +112,8 @@ impl Addressing {
         }
     }
 
-    pub fn to_register_specific_addressing(&self) -> Addressing {
-        let fixed_addressing_register = match self.register {
-            Some(register) => {
-                if register == AddressingRegistry::X {
-                    Some(AddressingRegistry::Y)
-                } else {
-                    // TODO: Confirm
-                    Some(register)
-                }
-            },
-            None => None
-        };
-        Addressing {
-            register: fixed_addressing_register,
-            add_cycles: self.add_cycles,
-            mode: self.mode
-        }
-    }
-
     pub fn from_op_code(mid_op_code: u8, lower_op_code: u8) -> Addressing {
+        println!("{:b} {:b}", mid_op_code, lower_op_code);
         match (mid_op_code, lower_op_code) {
             // c == 0b10
             (0b0, 0b01) => Addressing::indexed_indirect(),
