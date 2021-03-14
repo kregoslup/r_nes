@@ -21,8 +21,8 @@ mod ppu;
 mod screen;
 
 fn main() {
-    run_test()
-//    run_emulation()
+//    run_test()
+    run_emulation()
 }
 
 fn run_test() {
@@ -31,7 +31,7 @@ fn run_test() {
 }
 
 fn run_emulation() {
-    startup("rom/Super_mario_brothers.nes", None)
+    startup("rom/super_mario_bros_v2.nes", None)
 }
 
 fn startup(path: &str, program_counter: Option<u16>) {

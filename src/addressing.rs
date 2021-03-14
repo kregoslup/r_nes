@@ -113,7 +113,6 @@ impl Addressing {
     }
 
     pub fn from_op_code(mid_op_code: u8, lower_op_code: u8) -> Addressing {
-        println!("{:b} {:b}", mid_op_code, lower_op_code);
         match (mid_op_code, lower_op_code) {
             // c == 0b10
             (0b0, 0b01) => Addressing::indexed_indirect(),

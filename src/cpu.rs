@@ -173,8 +173,6 @@ impl Cpu {
     }
 
     fn zero_page_indexed_address(&mut self, addressing: &Addressing) -> u16 {
-        println!("here");
-        println!("{:?}", addressing);
         self.program_counter += 1;
         let base = self.fetch(self.program_counter);
         let to_add = match addressing.register {
@@ -324,7 +322,7 @@ impl Cpu {
                 );
                 println!("cpu before: {:?}", self);
                 let result = self.evaluate(OpCode::new(op_code));
-                println!("cpu after: {:?}", self);
+                println!("cpu after: {:?}\n", self);
                 self.cycles += result;
             }
         }
@@ -340,7 +338,7 @@ impl Cpu {
     }
 
     pub fn evaluate(&mut self, op_code: OpCode) -> u8 {
-        println!("\nEvaluating op code, hex: {:#02X}, bin: {:#08b}", op_code.value, op_code.value);
+        println!("Evaluating op code, hex: {:#02X}, bin: {:#08b}", op_code.value, op_code.value);
         return match op_code.value {
             0x18 => self.clear_flag(Flags::CARRY),
             0xD8 => self.clear_flag(Flags::DECIMAL),
@@ -646,12 +644,11 @@ impl Cpu {
 
     fn adjust_addressing(&mut self, addressing: Addressing, target: AddressingRegistry) -> Addressing {
         // TODO: Move to addressing.rs. Use only in STX and LDX
-        println!("{:?} {:?}", addressing, target);
         if target == AddressingRegistry::X {
             if addressing.mode == ZeroPageIndexed && addressing.register == Some(AddressingRegistry::X) {
                 return Addressing::zero_page_indexed(Some(AddressingRegistry::Y), false)
             }
-            if addressing.mode == Absolute && addressing.register == Some(AddressingRegistry::X) {
+            if addressing.mode == AbsoluteIndexed && addressing.register == Some(AddressingRegistry::X) {
                 return Addressing::absolute_indexed(Some(AddressingRegistry::Y), false)
             }
         }
@@ -770,7 +767,7 @@ impl Cpu {
     fn load_accumulator(&mut self, addressing: Addressing) -> u8 {
         let mut cycles = 2;
         let (value, address) = self.fetch_with_addressing_mode(&addressing);
-        println!("{:#01X} from address {:#01X} addressing {:?}", value, address.unwrap(), addressing);
+        println!("Loading {:#01X} from {:#01X}", value, address.unwrap());
         self.set_negative(value as u16);
         self.set_zero(value as u16);
         self.acc = value;

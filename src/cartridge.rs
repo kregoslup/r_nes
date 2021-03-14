@@ -88,6 +88,9 @@ pub struct CartridgeLoader {
 
 impl CartridgeLoader {
     pub fn load_cartridge(payload: Vec<u8>) -> Cartridge {
+        for e in payload.iter().take(35) {
+            print!(" {:#01X} ", e);
+        }
         let mut loader = CartridgeLoader { payload };
         loader.assert_constant();
         let mapper_code = loader.load_mapper();

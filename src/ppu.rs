@@ -22,7 +22,6 @@ pub struct Ppu {
     sprite_size: u8,
     sprite_pattern_table: u16,
     background_pattern_table_address: u16
-    // palette? - colours
 }
 
 impl Ppu {
@@ -54,7 +53,6 @@ impl Ppu {
         }
         self.cycles += 1;
 
-//        println!("Cycles: {} scanline: {}", self.cycles, self.scanline);
         if self.cycles == 341 {
             self.scanline += 1;
             self.cycles = 0;
@@ -89,12 +87,16 @@ impl Ppu {
             0x2000 => self.latch, // PPUCTRL
             0x2001 => self.latch, // PPUMASK
             0x2002 => {
+                let mut result = self.latch;
+                result &= 0b00_01_11_11;
                 self.latch = 0;
                 if nth_bit(self.ppu_status, 7) {
-                    0b1000_0000 | (0b0001_1111 & self.latch)
-                } else {
-                    0
+                    result |= 0b10_00_00_00;
                 }
+                // TODO: Sprite 0 hit and sprite overflow: https://wiki.nesdev.com/w/index.php/PPU_registers#PPUSTATUS
+                self.clear_vblank();
+                self.latch = 0;
+                return result
             }, // PPUSTATUS
             0x2003 => self.latch, // OAMADDR
             0x2004 => self.latch, // OAMDATA
@@ -110,7 +112,7 @@ impl Ppu {
     }
 
     pub fn save(&mut self, address: u16, value: u8) {
-        println!("ppu save: {:#01X}", address);
+        println!("ppu save: {:#01X} at address {:#01X}", value, address);
         self.latch = value;
         match address {
             0x2000 => {
