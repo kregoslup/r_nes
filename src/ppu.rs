@@ -16,12 +16,7 @@ pub struct Ppu {
     latch: u8,
     last_register: u8,
     pub nmi_occurred: bool,
-    nmi_output: bool,
-    base_name_table_address: u32,
-    vram_increment: u8,
-    sprite_size: u8,
-    sprite_pattern_table: u16,
-    background_pattern_table_address: u16
+    status: u8
 }
 
 impl Ppu {
@@ -38,17 +33,12 @@ impl Ppu {
             vram_address: 0,
             last_register: 0,
             nmi_occurred: false,
-            nmi_output: false,
-            base_name_table_address: 0,
-            vram_increment: 0,
-            sprite_size: 0,
-            sprite_pattern_table: 0,
-            background_pattern_table_address: 0
+            status: 0
         }
     }
 
     pub fn tick(&mut self) {
-        if self.nmi_output && self.nmi_occurred {
+        if self.get_nmi_output() && self.nmi_occurred {
             panic!("NMI OCCURRED")
         }
         self.cycles += 1;
@@ -67,7 +57,7 @@ impl Ppu {
             self.clear_vblank();
             self.nmi_occurred = false;
         } else if (self.scanline == 241) && (self.cycles == 1) {
-            println!("Setting vblank, nmi ouput: {}", self.nmi_output);
+            println!("Setting vblank, nmi output: {}", self.get_nmi_output());
             self.set_vblank();
             self.nmi_occurred = true;
         }
@@ -81,6 +71,10 @@ impl Ppu {
         self.ppu_status &= 0b0000_0000
     }
 
+    fn is_vblank(&self) -> bool {
+        (self.ppu_status & 0b1000_0000) != 0
+    }
+
     pub fn fetch(&mut self, address: u16) -> u8 {
         println!("ppu fetch: {:#01X}", address);
         match address {
@@ -89,13 +83,11 @@ impl Ppu {
             0x2002 => {
                 let mut result = self.latch;
                 result &= 0b00_01_11_11;
-                self.latch = 0;
-                if nth_bit(self.ppu_status, 7) {
+                if self.is_vblank() {
                     result |= 0b10_00_00_00;
                 }
                 // TODO: Sprite 0 hit and sprite overflow: https://wiki.nesdev.com/w/index.php/PPU_registers#PPUSTATUS
                 self.clear_vblank();
-                self.latch = 0;
                 return result
             }, // PPUSTATUS
             0x2003 => self.latch, // OAMADDR
@@ -104,7 +96,7 @@ impl Ppu {
             0x2006 => self.latch, // PPUADDR
             0x2007 => {
                 let result = self.pattern_table[self.vram_address as usize];
-                self.vram_address += self.vram_increment as u16;
+                self.vram_address += self.get_vram_increment() as u16;
                 return result
             }, // PPUDATA
             _ => panic!("Ppu port not implemented")
@@ -116,13 +108,7 @@ impl Ppu {
         self.latch = value;
         match address {
             0x2000 => {
-                self.set_base_nametable_address(value);
-                self.set_vram_increment(value);
-                self.set_sprite_pattern_table(value);
-                self.set_background_pattern_table(value);
-                self.set_sprite_size(value);
-                self.ppu_master_slave(value);
-                self.set_nmi_output(value);
+                self.status = value;
             }, // PPUCTRL
 //            0x2001 => unimplemented!(), // PPUMASK
             0x2002 => {
@@ -137,59 +123,59 @@ impl Ppu {
             }, // PPUADDR
             0x2007 => {
                 self.ram[self.vram_address as usize] = value;
-                self.vram_address += self.vram_increment as u16
+                self.vram_address += self.get_vram_increment() as u16
             }, // PPUDATA
             _ => panic!("Ppu port not implemented")
         }
     }
 
-    fn set_nmi_output(&mut self, value: u8) {
-        self.nmi_output = nth_bit(value, 7)
+    fn get_nmi_output(&mut self) -> bool {
+        nth_bit(self.status, 7)
     }
 
-    fn ppu_master_slave(&mut self, value: u8) {
+    fn ppu_master_slave(&mut self) {
         // TODO
     }
 
-    fn set_sprite_size(&mut self, value: u8) {
-        if nth_bit(value, 3) {
-            self.sprite_pattern_table = 16
+    fn get_sprite_size(&mut self) -> u8 {
+        if nth_bit(self.status, 3) {
+            16
         } else {
-            self.sprite_pattern_table = 8
+            8
         }
     }
 
-    fn set_sprite_pattern_table(&mut self, value: u8) {
-        if nth_bit(value, 3) {
-            self.sprite_pattern_table = 0x1000
+    fn get_sprite_pattern_table(&mut self) -> u16 {
+        if nth_bit(self.status, 3) {
+            0x1000
         } else {
-            self.sprite_pattern_table = 0x0000
+            0x0000
         }
     }
 
-    fn set_background_pattern_table(&mut self, value: u8) {
-        if nth_bit(value, 4) {
-            self.background_pattern_table_address = 0x1000
+    fn get_background_pattern_table(&mut self) -> u16 {
+        if nth_bit(self.status, 4) {
+            0x1000
         } else {
-            self.background_pattern_table_address = 0x0000
+            0x0000
         }
     }
 
-    fn set_base_nametable_address(&mut self, value: u8) {
-        match value & 0b0000_0011 {
-            0 => self.base_name_table_address = 0x2000,
-            1 => self.base_name_table_address = 0x2400,
-            2 => self.base_name_table_address = 0x2800,
-            3 => self.base_name_table_address = 0x2C00,
-            _ => panic!("Invalid nametable address {:#01X}", value)
-        };
+    fn get_base_nametable_address(&mut self) -> u16 {
+        match self.status & 0b0000_0011 {
+            0 => 0x2000,
+            1 => 0x2400,
+            2 => 0x2800,
+            3 => 0x2C00,
+            _ => panic!("Invalid nametable address {:#01X}", self.status)
+        }
     }
 
-    fn set_vram_increment(&mut self, value: u8) {
-        if nth_bit(value, 2) {
-            self.vram_increment = 32;
+    fn get_vram_increment(&mut self) -> u8 {
+        if nth_bit(self.status, 2) {
+            32
         } else {
-            self.vram_increment = 1;
+            1
         }
     }
 

@@ -33,8 +33,6 @@ impl fmt::Debug for Cpu {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         f.debug_struct("Cpu")
             .field("stack_pointer_hex", &format_args!("{:#01X}", self.stack_pointer))
-            .field("stack_pointer_dec", &self.stack_pointer)
-            .field("program_counter_dec", &self.program_counter)
             .field("program_counter_hex", &format_args!("{:#01X}", self.program_counter))
             .field("acc", &format_args!("{:#01X}", self.acc))
             .field("reg_x", &format_args!("{:#01X}", self.reg_x))
