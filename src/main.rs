@@ -37,7 +37,7 @@ fn run_emulation() {
 fn startup(path: &str, program_counter: Option<u16>) {
     // TODO: Setup this properly
     let cartridge = CartridgeLoader::load_cartridge(read_file(Path::new(path)));
-    let mut ppu = Ppu::new(cartridge.chr_rom.clone(), vec![]);
+    let mut ppu = Ppu::new(cartridge.chr_rom.clone());
     let bus = Bus::new( vec![0; 2048], ppu, cartridge);
     let mut emulator = Cpu::new(bus, program_counter);
     emulator.emulation_loop();

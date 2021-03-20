@@ -5,8 +5,6 @@ static PPU_ADDRESSABLE_RANGE: u16 = 0x3FF;
 
 #[derive(Debug)]
 pub struct Ppu {
-    pattern_table: Vec<u8>, // CHR_ROM - sprites
-    name_table: Vec<u8>, // VRAM, - layout of background,
     ram: Vec<u8>,
     screen: Screen,
     cycles: u16,
@@ -20,15 +18,14 @@ pub struct Ppu {
 }
 
 impl Ppu {
-    pub fn new(pattern_table: Vec<u8>, name_table: Vec<u8>) -> Ppu {
+    pub fn new(mut pattern_table: Vec<u8>) -> Ppu {
+        pattern_table.append(vec![0 as u8; 0x1FFF].as_mut());
         return Ppu {
-            pattern_table,
-            name_table,
             screen: Screen::new(),
             cycles: 0,
             scanline: 0, // or 0
             ppu_status: 0,
-            ram: vec![],
+            ram: pattern_table,
             latch: 0,
             vram_address: 0,
             last_register: 0,
@@ -39,7 +36,7 @@ impl Ppu {
 
     pub fn tick(&mut self) {
         if self.get_nmi_output() && self.nmi_occurred {
-            panic!("NMI OCCURRED")
+            println!("[PPU]: NMI OCCURRED");
         }
         self.cycles += 1;
 
@@ -95,7 +92,7 @@ impl Ppu {
             0x2005 => self.latch, // PPUSCROLL
             0x2006 => self.latch, // PPUADDR
             0x2007 => {
-                let result = self.pattern_table[self.vram_address as usize];
+                let result = self.ram[self.vram_address as usize];
                 self.vram_address += self.get_vram_increment() as u16;
                 return result
             }, // PPUDATA
@@ -110,13 +107,13 @@ impl Ppu {
             0x2000 => {
                 self.status = value;
             }, // PPUCTRL
-            0x2001 => unimplemented!(), // PPUMASK
+            0x2001 => {}, // PPUMASK
             0x2002 => {
                 self.latch = value;
             }, // PPUSTATUS
             0x2003 => {}, // OAMADDR
             0x2004 => {}, // OAMDATA
-            0x2005 => unimplemented!(), // PPUSCROLL
+            0x2005 => {}, // PPUSCROLL
             0x2006 => {
                 self.vram_address = combine_u8(value, self.latch);
                 self.latch = value;

@@ -7,6 +7,7 @@ static PRG_ROM_SIZE_FLAG: u8 = 4;
 trait Mapper {
     fn map_cpu(prg_rom: &Vec<u8>, banks: u8, address: u16) -> u8;
 
+    // TODO: Remove, not used
     fn map_ppu(chr_rom: &Vec<u8>, address: u16) -> u8;
 }
 
@@ -19,7 +20,6 @@ impl Mapper for Mapper000 {
     fn map_cpu(prg_rom: &Vec<u8>, banks: u8, address: u16) -> u8 {
         if address >= 0x8000 && address <= 0xFFFF {
             let mapped_address = address & (if banks > 1 {0x7FFF} else {0x3FFF});
-//            println!("Mapping address {:X}, banks: {}, address: {:X}", mapped_address, banks, address);
             return prg_rom[mapped_address as usize]
         }
         panic!("Unknown cpu address to map: {:X}", address);
