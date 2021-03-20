@@ -2,19 +2,18 @@
 #[allow(warnings)]
 extern crate bitflags;
 
-use std::fs::File;
-use std::io::Read;
 use std::path::Path;
 use log::LevelFilter;
 use log4rs::append::console::ConsoleAppender;
 use log4rs::append::file::FileAppender;
 use log4rs::encode::pattern::PatternEncoder;
 use log4rs::config::{Appender, Config, Logger, Root};
+use log4rs::Handle;
 use crate::bus::Bus;
 use crate::cpu::Cpu;
 use crate::cartridge::CartridgeLoader;
 use crate::ppu::Ppu;
-use log4rs::Handle;
+use crate::util::read_file;
 
 mod cpu;
 mod op_code;
@@ -57,11 +56,4 @@ fn configure_logging() -> Handle {
         .build(Root::builder().appender("stdout").build(LevelFilter::Warn))
         .unwrap();
     log4rs::init_config(config).unwrap()
-}
-
-fn read_file(path: &Path) -> Vec<u8> {
-    let mut file = File::open(path).unwrap();
-    let mut data = Vec::new();
-    file.read_to_end(&mut data);
-    return data;
 }

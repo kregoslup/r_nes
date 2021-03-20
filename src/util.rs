@@ -1,6 +1,9 @@
 use std::u8;
 use std::ops::BitOr;
 use log::{info, warn};
+use std::path::Path;
+use std::fs::File;
+use std::io::Read;
 
 pub fn combine_u8(lsb: u8, msb: u8) -> u16 {
     ((msb as u16) << 8).bitor(lsb as u16)
@@ -24,6 +27,13 @@ pub fn nth_bit(input: u8, n: u8) -> bool {
 
 pub fn lsb(value: u8) -> u8 {
     value & 0b0000_0001
+}
+
+pub fn read_file(path: &Path) -> Vec<u8> {
+    let mut file = File::open(path).unwrap();
+    let mut data = Vec::new();
+    file.read_to_end(&mut data);
+    return data;
 }
 
 #[cfg(test)]
