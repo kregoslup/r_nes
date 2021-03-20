@@ -110,13 +110,13 @@ impl Ppu {
             0x2000 => {
                 self.status = value;
             }, // PPUCTRL
-//            0x2001 => unimplemented!(), // PPUMASK
+            0x2001 => unimplemented!(), // PPUMASK
             0x2002 => {
                 self.latch = value;
             }, // PPUSTATUS
-//            0x2003 => unimplemented!(), // OAMADDR
-//            0x2004 => unimplemented!(), // OAMDATA
-//            0x2005 => unimplemented!(), // PPUSCROLL
+            0x2003 => {}, // OAMADDR
+            0x2004 => {}, // OAMDATA
+            0x2005 => unimplemented!(), // PPUSCROLL
             0x2006 => {
                 self.vram_address = combine_u8(value, self.latch);
                 self.latch = value;

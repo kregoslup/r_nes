@@ -16,6 +16,9 @@ static PPU_BOUNDARY: u16 = 0x3FFF;
 static CARTRIDGE_LOWER_BOUNDARY: u16 = 0x4020;
 static MEMORY_MAP_BOUNDARY: u16 = 0xFFFF;
 
+static APU_LOWER_BOUNDARY: u16 = 0x4000;
+static APU_UPPER_BOUNDARY: u16 = 0x401F;
+
 #[derive(Debug)]
 pub struct Bus {
     memory: Vec<u8>,
@@ -47,6 +50,9 @@ impl Bus {
             self.ppu.fetch(self.as_ppu_address(address))
         } else if self.is_cartridge(address) {
             self.cartridge.cpu_read(address)
+        } else if self.is_apu(address) {
+            println!("Accessing APU");
+            return 0;
         } else {
             panic!("Memory address not supported, {:#01X}", address)
         }
@@ -61,9 +67,15 @@ impl Bus {
             self.ppu.save(self.as_ppu_address(address), value)
         } else if self.is_cartridge(address) {
             unimplemented!();
+        } else if self.is_apu(address) {
+            println!("Writing APU");
         } else {
             panic!("Memory address not supported, {:#01X}", address)
         }
+    }
+
+    fn is_apu(&self, address: u16) -> bool {
+        return (address >= APU_LOWER_BOUNDARY) & (address <= APU_UPPER_BOUNDARY)
     }
 
     fn is_ram(&self, address: u16) -> bool {

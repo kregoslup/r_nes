@@ -310,7 +310,8 @@ impl Cpu {
                 writeln!(
                     logfile,
                     // TODO: Fix length, add padding
-                    "{} A:{} X:{} Y:{} P:{} SP:{}",
+                    "{:01X} {} A:{} X:{} Y:{} P:{} SP:{}",
+                    op_code,
                     self.debug_format(self.program_counter),
                     self.debug_format(self.acc),
                     self.debug_format(self.reg_x),
@@ -447,9 +448,10 @@ impl Cpu {
         self.push_program_counter_on_stack();
         self.push_flags_on_stack();
         self.status.insert(Flags::IRQ_DIS);
-        let msb = self.fetch(0xFFFA);
-        let lsb = self.fetch(0xFFFB);
+        let lsb = self.fetch(0xFFFA);
+        let msb = self.fetch(0xFFFB);
         self.program_counter = combine_u8(lsb, msb);
+        println!("NMI program counter {:01X}", self.program_counter);
         cycles
     }
 

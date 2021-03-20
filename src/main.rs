@@ -27,11 +27,11 @@ fn main() {
 
 fn run_test() {
 //    startup("rom/nestest.nes", Some(0xC000))
-    startup("rom/nestest.nes", Some(0xC000))
+    startup("rom/official_only.nes", Some(0x0000))
 }
 
 fn run_emulation() {
-    startup("rom/super_mario_bros_v2.nes", None)
+    startup("rom/Donkey Kong (World) (Rev A).nes", None)
 }
 
 fn startup(path: &str, program_counter: Option<u16>) {
