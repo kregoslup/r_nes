@@ -1,4 +1,5 @@
 use crate::util::{combine_nibbles, nth_bit};
+use log::{info, warn};
 use std::fs::File;
 use std::io::Read;
 
@@ -110,7 +111,7 @@ impl CartridgeLoader {
         let header_constant_end = 4;
         let header_constant_combination: Vec<u8> = vec![0x4E, 0x45, 0x53, 0x1A];
         let valid_header = self.payload[header_constant_start..header_constant_end] == *header_constant_combination;
-        println!("{:X?}", &self.payload[header_constant_start..header_constant_end]);
+        info!("{:X?}", &self.payload[header_constant_start..header_constant_end]);
         if !valid_header {
             panic!("ROM does not contain the usual header");
         }

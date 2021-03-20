@@ -5,10 +5,16 @@ extern crate bitflags;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
+use log::LevelFilter;
+use log4rs::append::console::ConsoleAppender;
+use log4rs::append::file::FileAppender;
+use log4rs::encode::pattern::PatternEncoder;
+use log4rs::config::{Appender, Config, Logger, Root};
 use crate::bus::Bus;
 use crate::cpu::Cpu;
 use crate::cartridge::CartridgeLoader;
 use crate::ppu::Ppu;
+use log4rs::Handle;
 
 mod cpu;
 mod op_code;
@@ -21,6 +27,7 @@ mod ppu;
 mod screen;
 
 fn main() {
+    configure_logging();
 //    run_test()
     run_emulation()
 }
@@ -37,10 +44,19 @@ fn run_emulation() {
 fn startup(path: &str, program_counter: Option<u16>) {
     // TODO: Setup this properly
     let cartridge = CartridgeLoader::load_cartridge(read_file(Path::new(path)));
-    let mut ppu = Ppu::new(cartridge.chr_rom.clone());
+    let mut ppu = Ppu::new();
     let bus = Bus::new( vec![0; 2048], ppu, cartridge);
     let mut emulator = Cpu::new(bus, program_counter);
     emulator.emulation_loop();
+}
+
+fn configure_logging() -> Handle {
+    let stdout = ConsoleAppender::builder().build();
+    let config = Config::builder()
+        .appender(Appender::builder().build("stdout", Box::new(stdout)))
+        .build(Root::builder().appender("stdout").build(LevelFilter::Warn))
+        .unwrap();
+    log4rs::init_config(config).unwrap()
 }
 
 fn read_file(path: &Path) -> Vec<u8> {

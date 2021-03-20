@@ -1,5 +1,6 @@
 use std::u8;
 use std::ops::BitOr;
+use log::{info, warn};
 
 pub fn combine_u8(lsb: u8, msb: u8) -> u16 {
     ((msb as u16) << 8).bitor(lsb as u16)
@@ -32,14 +33,14 @@ mod tests {
     #[test]
     fn test_get_first_bit() {
         let value: u8 = 0b00_01_00_00;
-        println!("{:?} 7", nth_bit(value, 7));
-        println!("{:?} 6", nth_bit(value, 6));
-        println!("{:?} 5", nth_bit(value, 5));
-        println!("{:?} 4", nth_bit(value, 4));
-        println!("{:?} 3", nth_bit(value, 3));
-        println!("{:?} 2", nth_bit(value, 2));
-        println!("{:?} 1", nth_bit(value, 1));
-        println!("{:?} 0", nth_bit(value, 0));
+        info!("{:?} 7", nth_bit(value, 7));
+        info!("{:?} 6", nth_bit(value, 6));
+        info!("{:?} 5", nth_bit(value, 5));
+        info!("{:?} 4", nth_bit(value, 4));
+        info!("{:?} 3", nth_bit(value, 3));
+        info!("{:?} 2", nth_bit(value, 2));
+        info!("{:?} 1", nth_bit(value, 1));
+        info!("{:?} 0", nth_bit(value, 0));
         assert_eq!(nth_bit(value, 7) as u8, 0);
         assert_eq!(nth_bit(value, 6) as u8, 0);
         assert_eq!(nth_bit(value, 5) as u8, 0);
@@ -53,14 +54,14 @@ mod tests {
     #[test]
     fn test_get_first_bit_v2() {
         let value: u8 = 0b00_00_00_01;
-        println!("{:?} 7", nth_bit(value, 7));
-        println!("{:?} 6", nth_bit(value, 6));
-        println!("{:?} 5", nth_bit(value, 5));
-        println!("{:?} 4", nth_bit(value, 4));
-        println!("{:?} 3", nth_bit(value, 3));
-        println!("{:?} 2", nth_bit(value, 2));
-        println!("{:?} 1", nth_bit(value, 1));
-        println!("{:?} 0", nth_bit(value, 0));
+        info!("{:?} 7", nth_bit(value, 7));
+        info!("{:?} 6", nth_bit(value, 6));
+        info!("{:?} 5", nth_bit(value, 5));
+        info!("{:?} 4", nth_bit(value, 4));
+        info!("{:?} 3", nth_bit(value, 3));
+        info!("{:?} 2", nth_bit(value, 2));
+        info!("{:?} 1", nth_bit(value, 1));
+        info!("{:?} 0", nth_bit(value, 0));
         assert_eq!(nth_bit(value, 7) as u8, 0);
         assert_eq!(nth_bit(value, 6) as u8, 0);
         assert_eq!(nth_bit(value, 5) as u8, 0);

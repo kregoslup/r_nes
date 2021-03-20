@@ -7,6 +7,7 @@ use crate::util::{combine_u8, msb, lsb, nth_bit};
 use crate::flags::Flags;
 
 use std::ops::{BitOr, BitAnd, BitXor, Shl, Shr};
+use log::{info, warn};
 use bitflags::_core::num::Wrapping;
 use std::{u8, fmt};
 use std::borrow::Borrow;
@@ -179,7 +180,7 @@ impl Cpu {
             _ => panic!("Addressing registry has to be filled")
         };
         // TODO: +1 to cycle if wrapped
-        println!("base {:#01X} add {:#01X} result {:#01X}", base, to_add, (Wrapping(base) + Wrapping(to_add)).0 as u16);
+        info!("base {:#01X} add {:#01X} result {:#01X}", base, to_add, (Wrapping(base) + Wrapping(to_add)).0 as u16);
         (Wrapping(base) + Wrapping(to_add)).0 as u16
     }
 
@@ -319,9 +320,9 @@ impl Cpu {
                     self.debug_format(self.status),
                     self.debug_format(self.stack_pointer)
                 );
-                println!("cpu before: {:?}", self);
+                info!("cpu before: {:?}", self);
                 let result = self.evaluate(OpCode::new(op_code));
-                println!("cpu after: {:?}\n", self);
+                info!("cpu after: {:?}\n", self);
                 self.cycles += result;
             }
         }
@@ -337,7 +338,7 @@ impl Cpu {
     }
 
     pub fn evaluate(&mut self, op_code: OpCode) -> u8 {
-        println!("Evaluating op code, hex: {:#02X}, bin: {:#08b}", op_code.value, op_code.value);
+        info!("Evaluating op code, hex: {:#02X}, bin: {:#08b}", op_code.value, op_code.value);
         return match op_code.value {
             0x18 => self.clear_flag(Flags::CARRY),
             0xD8 => self.clear_flag(Flags::DECIMAL),
@@ -443,7 +444,7 @@ impl Cpu {
     }
 
     fn nmi_interrupt(&mut self) -> u8 {
-        println!("Handling NMI interrupt");
+        info!("Handling NMI interrupt");
         let cycles = 2;
         self.push_program_counter_on_stack();
         self.push_flags_on_stack();
@@ -451,7 +452,7 @@ impl Cpu {
         let lsb = self.fetch(0xFFFA);
         let msb = self.fetch(0xFFFB);
         self.program_counter = combine_u8(lsb, msb);
-        println!("NMI program counter {:01X}", self.program_counter);
+        info!("NMI program counter {:01X}", self.program_counter);
         cycles
     }
 
@@ -464,7 +465,7 @@ impl Cpu {
 
     fn pull_accumulator(&mut self) -> u8 {
         let cycles = 3;
-        println!("stack: {:01X}", self.fetch(self.stack_pointer as u16));
+        info!("stack: {:01X}", self.fetch(self.stack_pointer as u16));
         self.acc = self.pull_from_stack();
         self.set_zero(self.acc as u16);
         self.set_negative(self.acc as u16);
@@ -532,7 +533,7 @@ impl Cpu {
     fn bit_test(&mut self, addressing: Addressing) -> u8 {
         let mut cycles = 3;
         let (to_test, _) = self.fetch_with_addressing_mode(&addressing);
-        println!("to test: {:#01X}", to_test);
+        info!("to test: {:#01X}", to_test);
         let zero = (to_test & self.acc) == 0;
         let negative = msb(to_test) == 1;
         let overflow = nth_bit(to_test, 6); // TODO: Check if true
@@ -590,7 +591,7 @@ impl Cpu {
         } else {
             self.reg_y
         };
-        println!("Storing {:#01X} at address  {:#01X}", register_value, address);
+        info!("Storing {:#01X} at address  {:#01X}", register_value, address);
         self.store(register_value, Some(address));
 
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, false);
@@ -656,7 +657,7 @@ impl Cpu {
     }
 
     fn load_register(&mut self, addressing: Addressing, target: AddressingRegistry) -> u8 {
-        println!("cpu before: {:?}", self);
+        info!("cpu before: {:?}", self);
         let mut cycles = 2;
         let adjusted_addressing = self.adjust_addressing(addressing, target);
         let (value, _) = self.fetch_with_addressing_mode(&adjusted_addressing);
@@ -667,7 +668,7 @@ impl Cpu {
         } else {
             self.reg_y = value;
         }
-        println!("cpu after: {:?}", self);
+        info!("cpu after: {:?}", self);
         cycles += self.count_additional_cycles(cycles, addressing.add_cycles, true);
         self.program_counter += 1;
         cycles
@@ -767,7 +768,7 @@ impl Cpu {
     fn load_accumulator(&mut self, addressing: Addressing) -> u8 {
         let mut cycles = 2;
         let (value, address) = self.fetch_with_addressing_mode(&addressing);
-        println!("Loading {:#01X} from {:#01X}", value, address.unwrap());
+        info!("Loading {:#01X} from {:#01X}", value, address.unwrap());
         self.set_negative(value as u16);
         self.set_zero(value as u16);
         self.acc = value;
@@ -882,14 +883,14 @@ mod tests {
     use crate::cartridge::Cartridge;
 
     fn create_test_bus(input: Vec<u8>) -> Bus {
-        let ppu = Ppu::new(vec![]);
+        let ppu = Ppu::new();
         let cartridge = Cartridge::new();
         return Bus::new(input, ppu, cartridge);
     }
 
     fn create_test_cpu(input: Vec<u8>) -> Cpu {
         let mut bus = create_test_bus(input);
-        Cpu::new(bus)
+        Cpu::new(bus, None)
     }
 
     fn reset_cpu(cpu: &mut Cpu) {
@@ -1365,7 +1366,7 @@ mod tests {
         reset_cpu(&mut cpu);
         cpu.status = Flags::PLACEHOLDER;
         cpu.evaluate(OpCode::new(0x38));
-        println!("{:?}", cpu);
+        info!("{:?}", cpu);
         assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::CARRY)
     }
 

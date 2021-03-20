@@ -1,5 +1,6 @@
 use std::path::Path;
 use std::fs::File;
+use log::{info, warn};
 use std::io::Read;
 use dirs::home_dir;
 use std::fmt::Debug;
@@ -51,7 +52,7 @@ impl Bus {
         } else if self.is_cartridge(address) {
             self.cartridge.cpu_read(address)
         } else if self.is_apu(address) {
-            println!("Accessing APU");
+            info!("Accessing APU");
             return 0;
         } else {
             panic!("Memory address not supported, {:#01X}", address)
@@ -61,14 +62,14 @@ impl Bus {
     pub fn store(&mut self, value: u8, address: u16) {
         if self.is_ram(address) {
             let as_ram_address = self.as_ram_address(address) as usize;
-            println!("Storing value {:#01X} at address {:#01X}", value, as_ram_address);
+            info!("Storing value {:#01X} at address {:#01X}", value, as_ram_address);
             self.memory[as_ram_address] = value;
         } else if self.is_ppu(address) {
             self.ppu.save(self.as_ppu_address(address), value)
         } else if self.is_cartridge(address) {
             unimplemented!();
         } else if self.is_apu(address) {
-            println!("Writing APU");
+            info!("Writing APU");
         } else {
             panic!("Memory address not supported, {:#01X}", address)
         }

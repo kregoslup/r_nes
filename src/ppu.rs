@@ -1,6 +1,8 @@
 use crate::screen::Screen;
 use crate::util::{nth_bit, combine_u8};
 
+use log::{info, warn};
+
 static PPU_ADDRESSABLE_RANGE: u16 = 0x3FF;
 
 #[derive(Debug)]
@@ -18,14 +20,14 @@ pub struct Ppu {
 }
 
 impl Ppu {
-    pub fn new(mut pattern_table: Vec<u8>) -> Ppu {
-        pattern_table.append(vec![0 as u8; 0x1FFF].as_mut());
+    pub fn new() -> Ppu {
+        // TODO: Useless
         return Ppu {
             screen: Screen::new(),
             cycles: 0,
             scanline: 0, // or 0
             ppu_status: 0,
-            ram: pattern_table,
+            ram: vec![0; 0x3FFF],
             latch: 0,
             vram_address: 0,
             last_register: 0,
@@ -36,7 +38,7 @@ impl Ppu {
 
     pub fn tick(&mut self) {
         if self.get_nmi_output() && self.nmi_occurred {
-            println!("[PPU]: NMI OCCURRED");
+            info!("[PPU]: NMI OCCURRED");
         }
         self.cycles += 1;
 
@@ -54,7 +56,7 @@ impl Ppu {
             self.clear_vblank();
             self.nmi_occurred = false;
         } else if (self.scanline == 241) && (self.cycles == 1) {
-            println!("Setting vblank, nmi output: {}", self.get_nmi_output());
+            info!("Setting vblank, nmi output: {}", self.get_nmi_output());
             self.set_vblank();
             self.nmi_occurred = true;
         }
@@ -73,7 +75,7 @@ impl Ppu {
     }
 
     pub fn fetch(&mut self, address: u16) -> u8 {
-        println!("ppu fetch: {:#01X}", address);
+        info!("ppu fetch: {:#01X}", address);
         match address {
             0x2000 => self.latch, // PPUCTRL
             0x2001 => self.latch, // PPUMASK
@@ -101,7 +103,7 @@ impl Ppu {
     }
 
     pub fn save(&mut self, address: u16, value: u8) {
-        println!("ppu save: {:#01X} at address {:#01X}", value, address);
+        info!("ppu save: {:#01X} at address {:#01X}", value, address);
         self.latch = value;
         match address {
             0x2000 => {
@@ -115,11 +117,13 @@ impl Ppu {
             0x2004 => {}, // OAMDATA
             0x2005 => {}, // PPUSCROLL
             0x2006 => {
-                self.vram_address = combine_u8(value, self.latch);
+                self.vram_address = combine_u8(self.latch, value);
                 self.latch = value;
             }, // PPUADDR
             0x2007 => {
-                self.ram[self.vram_address as usize] = value;
+                let mirrored_down = self.vram_address & 0x3FFF;
+                info!("PPU 2007 saving {:#01X} at address {:#01X} mirrored: {:#01X}", value, mirrored_down, self.vram_address);
+                self.ram[mirrored_down as usize] = value;
                 self.vram_address += self.get_vram_increment() as u16
             }, // PPUDATA
             _ => panic!("Ppu port not implemented")
