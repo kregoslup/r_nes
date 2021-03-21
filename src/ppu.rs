@@ -2,8 +2,15 @@ use crate::screen::Screen;
 use crate::util::{nth_bit, combine_u8};
 
 use log::{info, warn};
+use std::num::Wrapping;
+use crate::ppu::NameTableMirroring::{HORIZONTAL, VERTICAL};
 
 static PPU_ADDRESSABLE_RANGE: u16 = 0x3FF;
+
+#[derive(Clone, Copy, Debug)]
+pub enum NameTableMirroring {
+    HORIZONTAL, VERTICAL
+}
 
 #[derive(Debug)]
 pub struct Ppu {
@@ -13,6 +20,7 @@ pub struct Ppu {
     scanline: u16,
     ppu_status: u8,
     vram_address: u16,
+    nametable_mirroring: NameTableMirroring,
     latch: u8,
     last_register: u8,
     pub nmi_occurred: bool,
@@ -20,14 +28,15 @@ pub struct Ppu {
 }
 
 impl Ppu {
-    pub fn new() -> Ppu {
-        // TODO: Useless
+    pub fn new(mut chr_rom: Vec<u8>, mirroring: NameTableMirroring) -> Ppu {
+        chr_rom.append(vec![0 as u8; 0x1FFF].as_mut());
         return Ppu {
             screen: Screen::new(),
             cycles: 0,
             scanline: 0, // or 0
             ppu_status: 0,
-            ram: vec![0; 0x3FFF],
+            ram: chr_rom,
+            nametable_mirroring: mirroring,
             latch: 0,
             vram_address: 0,
             last_register: 0,
@@ -85,7 +94,6 @@ impl Ppu {
                 if self.is_vblank() {
                     result |= 0b10_00_00_00;
                 }
-                // TODO: Sprite 0 hit and sprite overflow: https://wiki.nesdev.com/w/index.php/PPU_registers#PPUSTATUS
                 self.clear_vblank();
                 return result
             }, // PPUSTATUS
@@ -94,9 +102,26 @@ impl Ppu {
             0x2005 => self.latch, // PPUSCROLL
             0x2006 => self.latch, // PPUADDR
             0x2007 => {
-                let result = self.ram[self.vram_address as usize];
-                self.vram_address += self.get_vram_increment() as u16;
-                return result
+                match self.vram_address {
+                    0..=0x1FFF => {
+                        let address = self.get_vram_address();
+                        let result = self.ram[address];
+                        self.increment_vram();
+                        result
+                    },
+                    0x2000..=0x2FFF => {
+                        let mut mirrored_down = self.get_vram_address() & 0x2FFF;
+                        let vram_table = mirrored_down / 0x400;
+                        let address = match (self.nametable_mirroring, vram_table) {
+                            (HORIZONTAL, 1) | (HORIZONTAL, 3) => mirrored_down - 0x400,
+                            (VERTICAL, 1) | (VERTICAL, 3) => mirrored_down - 0x800,
+                            _ => mirrored_down
+                        };
+                        self.ram[address as usize]
+                    }
+                    _ => panic!("Unkown vram address: {:#01X}", self.vram_address)
+                }
+
             }, // PPUDATA
             _ => panic!("Ppu port not implemented")
         }
@@ -121,13 +146,21 @@ impl Ppu {
                 self.latch = value;
             }, // PPUADDR
             0x2007 => {
-                let mirrored_down = self.vram_address & 0x3FFF;
-                info!("PPU 2007 saving {:#01X} at address {:#01X} mirrored: {:#01X}", value, mirrored_down, self.vram_address);
-                self.ram[mirrored_down as usize] = value;
-                self.vram_address += self.get_vram_increment() as u16
+                let address = self.get_vram_address();
+                info!("PPU 2007 saving {:#01X} at address {:#01X}", value, address);
+                self.ram[address] = value;
+                self.increment_vram();
             }, // PPUDATA
             _ => panic!("Ppu port not implemented")
         }
+    }
+
+    fn get_vram_address(&mut self) -> usize {
+        (self.vram_address & 0x3FFF) as usize
+    }
+
+    fn increment_vram(&mut self) {
+        self.vram_address = (Wrapping(self.vram_address) + Wrapping(self.get_vram_increment() as u16)).0;
     }
 
     fn get_nmi_output(&mut self) -> bool {

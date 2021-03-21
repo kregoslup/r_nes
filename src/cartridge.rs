@@ -2,6 +2,8 @@ use crate::util::{combine_nibbles, nth_bit};
 use log::{info, warn};
 use std::fs::File;
 use std::io::Read;
+use crate::ppu::NameTableMirroring;
+use crate::ppu::NameTableMirroring::{HORIZONTAL, VERTICAL};
 
 static PRG_ROM_SIZE_FLAG: u8 = 4;
 
@@ -40,6 +42,7 @@ pub struct Cartridge {
     prg_rom: Vec<u8>,
     pub chr_rom: Vec<u8>,
     mapper_code: u8,
+    pub nametable_mirroring: NameTableMirroring
 }
 
 impl Cartridge {
@@ -50,7 +53,8 @@ impl Cartridge {
             prg_rom: vec![],
             chr_rom: vec![],
             mapper_code: 0,
-            prg_rom_banks: 0
+            prg_rom_banks: 0,
+            nametable_mirroring: HORIZONTAL
         }
     }
 
@@ -98,11 +102,13 @@ impl CartridgeLoader {
         let prg_rom = loader.load_prg();
         let prg_rom_banks = loader.prg_banks();
         let chr_rom = loader.load_chr();
+        let nametable_mirroring = loader.load_nametable_mirroring();
         return Cartridge {
             prg_rom_banks,
             prg_rom,
             chr_rom,
             mapper_code,
+            nametable_mirroring
         }
     }
 
@@ -147,6 +153,16 @@ impl CartridgeLoader {
             512
         } else {
             0
+        }
+    }
+
+    fn load_nametable_mirroring(&mut self) -> NameTableMirroring {
+        let nametable_flag = 6;
+        let mirroring = nth_bit(self.payload[nametable_flag], 0);
+        return if mirroring {
+            VERTICAL
+        } else {
+            HORIZONTAL
         }
     }
 

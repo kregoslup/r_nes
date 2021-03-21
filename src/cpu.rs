@@ -883,7 +883,7 @@ mod tests {
     use crate::cartridge::Cartridge;
 
     fn create_test_bus(input: Vec<u8>) -> Bus {
-        let ppu = Ppu::new();
+        let ppu = Ppu::new(vec![]);
         let cartridge = Cartridge::new();
         return Bus::new(input, ppu, cartridge);
     }

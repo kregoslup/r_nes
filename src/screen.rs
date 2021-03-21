@@ -3,8 +3,8 @@ extern crate minifb;
 use minifb::{Key, Window, WindowOptions};
 use std::fmt;
 
-const WIDTH: usize = 640;
-const HEIGHT: usize = 360;
+const WIDTH: usize = 256;
+const HEIGHT: usize = 240;
 
 pub struct Screen {
     window: Window
