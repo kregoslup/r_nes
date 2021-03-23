@@ -23,6 +23,10 @@ impl Screen {
             })
         }
     }
+
+    pub fn is_open(&mut self) -> bool {
+        true
+    }
 }
 
 impl fmt::Debug for Screen {

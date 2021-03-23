@@ -15,7 +15,6 @@ pub enum NameTableMirroring {
 #[derive(Debug)]
 pub struct Ppu {
     ram: Vec<u8>,
-    screen: Screen,
     cycles: u16,
     scanline: u16,
     ppu_status: u8,
@@ -31,7 +30,6 @@ impl Ppu {
     pub fn new(mut chr_rom: Vec<u8>, mirroring: NameTableMirroring) -> Ppu {
         chr_rom.append(vec![0 as u8; 0x1FFF].as_mut());
         return Ppu {
-            screen: Screen::new(),
             cycles: 0,
             scanline: 0, // or 0
             ppu_status: 0,
@@ -226,7 +224,7 @@ impl Ppu {
 
     }
 
-    pub fn emulate(&mut self) {
+    pub fn emulate(&mut self, screen: &Screen) {
         self.tick();
         self.tick();
         self.tick();

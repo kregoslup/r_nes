@@ -18,6 +18,7 @@ use std::fs::File;
 use std::fmt::Write as FmtWrite;
 use std::io::Write as IoWrite;
 use std::fmt::UpperHex;
+use crate::screen::Screen;
 
 pub struct Cpu {
     stack_pointer: u8,
@@ -59,22 +60,21 @@ impl Cpu {
         };
         match program_counter { // TODO: Implement reset vector handling
             Some(x) => cpu.program_counter = x,
-            None          => cpu.startup()
+            None          => cpu.reset_vector()
         }
         cpu
     }
 
-    pub fn emulation_loop(&mut self) {
-        let mut counter = 0;
-        let path = "testing/output.txt";
-        let mut output = File::create(path).unwrap();
-        loop { // TODO: Turning off, exiting, etc
-            self.emulate(&output);
-            self.bus.emulate();
+    pub fn emulation_loop(&mut self, logfile: &File, screen: &mut Screen) {
+        while screen.is_open() {
+            // let action = screen.get_action();
+            // self.parse_input_action()
+            self.emulate(&logfile);
+            self.bus.emulate(screen);
         }
     }
 
-    fn startup(&mut self) { // TODO: Reset vector?
+    fn reset_vector(&mut self) {
         let msb = self.fetch(0xFFFD);
         let lsb = self.fetch(0xFFFC);
         self.program_counter = combine_u8(lsb, msb);
@@ -879,11 +879,11 @@ impl Cpu {
 mod tests {
 
     use super::*;
-    use crate::ppu::Ppu;
+    use crate::ppu::{Ppu, NameTableMirroring};
     use crate::cartridge::Cartridge;
 
     fn create_test_bus(input: Vec<u8>) -> Bus {
-        let ppu = Ppu::new(vec![]);
+        let ppu = Ppu::new(vec![], NameTableMirroring::VERTICAL);
         let cartridge = Cartridge::new();
         return Bus::new(input, ppu, cartridge);
     }

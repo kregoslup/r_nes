@@ -7,6 +7,7 @@ use std::fmt::Debug;
 use crate::cartridge::{Cartridge, CartridgeLoader};
 use crate::ppu::Ppu;
 use crate::cpu::Cpu;
+use crate::screen::Screen;
 
 static RAM_MIRROR_BOUNDARY: u16 = 0x07FF;
 static RAM_BOUNDARY: u16 = 0x1FFF;
@@ -38,9 +39,9 @@ impl Bus {
         }
     }
 
-    pub fn emulate(&mut self) {
+    pub fn emulate(&mut self, screen: &Screen) {
         let previous_state = self.ppu.nmi_occurred;
-        self.ppu.emulate();
+        self.ppu.emulate(screen);
         self.nmi = !previous_state & self.ppu.nmi_occurred;
     }
 

@@ -14,6 +14,8 @@ use crate::cpu::Cpu;
 use crate::cartridge::CartridgeLoader;
 use crate::ppu::Ppu;
 use crate::util::read_file;
+use crate::console::Console;
+use std::fs::File;
 
 mod cpu;
 mod op_code;
@@ -24,29 +26,13 @@ mod flags;
 mod cartridge;
 mod ppu;
 mod screen;
+mod console;
 
 fn main() {
     configure_logging();
-//    run_test()
-    run_emulation()
-}
-
-fn run_test() {
-//    startup("rom/nestest.nes", Some(0xC000))
-    startup("rom/official_only.nes", Some(0x0000))
-}
-
-fn run_emulation() {
-    startup("rom/Donkey Kong (World) (Rev A).nes", None)
-}
-
-fn startup(path: &str, program_counter: Option<u16>) {
-    // TODO: Setup this properly
-    let cartridge = CartridgeLoader::load_cartridge(read_file(Path::new(path)));
-    let mut ppu = Ppu::new(cartridge.chr_rom.clone(), cartridge.nametable_mirroring);
-    let bus = Bus::new( vec![0; 2048], ppu, cartridge);
-    let mut emulator = Cpu::new(bus, program_counter);
-    emulator.emulation_loop();
+    let cartridge_path = Path::new("rom/Donkey Kong (World) (Rev A).nes");
+    let logfile = File::create("testing/output.txt").unwrap();
+    Console::power(&cartridge_path, &logfile);
 }
 
 fn configure_logging() -> Handle {
