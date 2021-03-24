@@ -39,7 +39,7 @@ impl Bus {
         }
     }
 
-    pub fn emulate(&mut self, screen: &Screen) {
+    pub fn emulate(&mut self, screen: &mut Screen) {
         let previous_state = self.ppu.nmi_occurred;
         self.ppu.emulate(screen);
         self.nmi = !previous_state & self.ppu.nmi_occurred;

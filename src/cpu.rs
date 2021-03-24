@@ -19,6 +19,8 @@ use std::fmt::Write as FmtWrite;
 use std::io::Write as IoWrite;
 use std::fmt::UpperHex;
 use crate::screen::Screen;
+use sdl2::event::Event;
+use sdl2::keyboard::Keycode;
 
 pub struct Cpu {
     stack_pointer: u8,
@@ -66,12 +68,18 @@ impl Cpu {
     }
 
     pub fn emulation_loop(&mut self, logfile: &File, screen: &mut Screen) {
-        while screen.is_open() {
-            // let action = screen.get_action();
-            // self.parse_input_action()
-            self.emulate(&logfile);
-            self.bus.emulate(screen);
-        }
+       loop {
+           // poll_event?
+           for event in screen.events_stream().poll_iter() {
+               match event {
+                   Event::Quit { .. } => break,
+                   _ => {}
+               }
+           }
+           self.emulate(&logfile);
+           self.bus.emulate(screen);
+           // self.parse_input_action()
+       }
     }
 
     fn reset_vector(&mut self) {

@@ -43,7 +43,7 @@ impl Ppu {
         }
     }
 
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self, screen: &mut Screen) {
         if self.get_nmi_output() && self.nmi_occurred {
             info!("[PPU]: NMI OCCURRED");
         }
@@ -55,7 +55,7 @@ impl Ppu {
         }
 
         if (0 <= self.scanline) && (self.scanline >= 239) {
-            // draw
+            screen.draw_pixels(self.create_frame());
         }
 
         if (self.scanline == 261) && (self.cycles == 1) {
@@ -67,6 +67,10 @@ impl Ppu {
             self.set_vblank();
             self.nmi_occurred = true;
         }
+    }
+
+    pub fn create_frame(&mut self) -> Vec<u8> {
+        vec![]
     }
 
     fn set_vblank(&mut self) {
@@ -224,10 +228,10 @@ impl Ppu {
 
     }
 
-    pub fn emulate(&mut self, screen: &Screen) {
-        self.tick();
-        self.tick();
-        self.tick();
+    pub fn emulate(&mut self, screen: &mut Screen) {
+        self.tick(screen);
+        self.tick(screen);
+        self.tick(screen);
     }
 
     fn get_tile(&mut self, address: u16) -> Vec<u8> {
