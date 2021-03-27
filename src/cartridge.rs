@@ -93,9 +93,6 @@ pub struct CartridgeLoader {
 
 impl CartridgeLoader {
     pub fn load_cartridge(payload: Vec<u8>) -> Cartridge {
-        for e in payload.iter().take(35) {
-            print!(" {:#01X} ", e);
-        }
         let mut loader = CartridgeLoader { payload };
         loader.assert_constant();
         let mapper_code = loader.load_mapper();
@@ -117,7 +114,6 @@ impl CartridgeLoader {
         let header_constant_end = 4;
         let header_constant_combination: Vec<u8> = vec![0x4E, 0x45, 0x53, 0x1A];
         let valid_header = self.payload[header_constant_start..header_constant_end] == *header_constant_combination;
-        info!("{:X?}", &self.payload[header_constant_start..header_constant_end]);
         if !valid_header {
             panic!("ROM does not contain the usual header");
         }
@@ -129,7 +125,6 @@ impl CartridgeLoader {
         let lower_nibble = (self.payload[lower_mapper_flag] & 0x10) >> 4;
         let upper_nibble = self.payload[upper_mapper_flag] & 0x10;
         let mapper_code = lower_nibble | upper_nibble;
-        dbg!(mapper_code);
         return mapper_code
     }
 
@@ -170,8 +165,6 @@ impl CartridgeLoader {
         let header_offset = 16;
         let prg_start = (header_offset + self.trainer_offset()) as usize; // HEADER - 16 bytes + Trainer 512 BYTES
         let size = self.prg_size() as usize;
-        dbg!(prg_start);
-        dbg!(size);
         return self.payload[prg_start..(prg_start + size)].to_vec()
     }
 
@@ -181,8 +174,6 @@ impl CartridgeLoader {
         let prg_offset = self.prg_size() as u16;
         let chr_size = self.chr_size() as usize;
         let chr_start = (header_offset + trainer_offset + prg_offset) as usize;
-        dbg!(chr_start);
-        dbg!(chr_size);
         return self.payload[chr_start..(chr_start + chr_size)].to_vec()
     }
 }

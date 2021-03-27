@@ -70,12 +70,12 @@ impl Cpu {
     pub fn emulation_loop(&mut self, logfile: &File, screen: &mut Screen) {
        loop {
            // poll_event?
-           for event in screen.events_stream().poll_iter() {
-               match event {
-                   Event::Quit { .. } => break,
-                   _ => {}
-               }
-           }
+//           for event in screen.events_stream().poll_iter() {
+//               match event {
+//                   Event::Quit { .. } => break,
+//                   _ => {}
+//               }
+//           }
            self.emulate(&logfile);
            self.bus.emulate(screen);
            // self.parse_input_action()

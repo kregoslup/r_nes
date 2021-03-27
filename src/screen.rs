@@ -1,11 +1,14 @@
 extern crate sdl2;
 
+use log::{info, warn};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels;
 use sdl2::render::WindowCanvas;
 use std::fmt;
 use self::sdl2::{Sdl, EventPump};
+use self::sdl2::pixels::PixelFormatEnum;
+use self::sdl2::rect::Point;
 
 const SCREEN_WIDTH: u32 = 256;
 const SCREEN_HEIGHT: u32 = 240;
@@ -21,7 +24,7 @@ impl Screen {
         let video_subsys = sdl_context.video().unwrap();
         let window = video_subsys
             .window(
-                "rust-sdl2_gfx: draw line & FPSManager",
+                "NES emulator",
                 SCREEN_WIDTH,
                 SCREEN_HEIGHT,
             )
@@ -40,6 +43,7 @@ impl Screen {
         canvas.set_draw_color(pixels::Color::RGB(0, 0, 0));
         canvas.clear();
         canvas.present();
+
         Screen {
             canvas,
             sdl: sdl_context
@@ -50,18 +54,29 @@ impl Screen {
         self.sdl.event_pump().unwrap()
     }
 
-    fn from_u8_rgb(r: u8, g: u8, b: u8) -> u32 {
-        let (r, g, b) = (r as u32, g as u32, b as u32);
-        (r << 16) | (g << 8) | b
+    pub fn draw_pixel(&mut self, cor_x: u16, cor_y: u16) {
+        let creator = self.canvas.texture_creator();
+        let mut texture = creator
+            .create_texture_target(PixelFormatEnum::RGB24,SCREEN_WIDTH, SCREEN_HEIGHT)
+            .unwrap();
+        self.canvas.set_draw_color(pixels::Color::RGB(250, 250, 250));
+        self.canvas.draw_point(Point::new(cor_x as i32, cor_y as i32));
+//        let mut x = (position % 32 as u16) * 8;
+//        let mut y = (position / 30 as u16) * 8;
+//        self.canvas.set_draw_color(pixels::Color::RGB(250, 250, 250));
+//        for i in 0..=7 {
+//            for k in 0..=7 {
+//                x += k;
+//                y += i;
+//                warn!("drawing x - {} y - {} ", x, y);
+//                self.canvas.draw_point(Point::new(x as i32, y as i32));
+//            }
+//        };
+
+        self.canvas.present();
+//        texture.update()
     }
 
-    pub fn draw_pixels(&mut self, pixels: Vec<u8>) {
-        let buffer_width = 100;
-        let buffer_height = 150;
-        let azure_blue = Screen::from_u8_rgb(0, 127, 255);
-        let mut buffer: Vec<u32> = vec![azure_blue; buffer_width * buffer_height];
-//        self.window.update_with_buffer(&buffer, buffer_width, buffer_height).unwrap();
-    }
 }
 
 impl fmt::Debug for Screen {

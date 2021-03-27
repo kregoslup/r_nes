@@ -23,7 +23,8 @@ pub struct Ppu {
     latch: u8,
     last_register: u8,
     pub nmi_occurred: bool,
-    status: u8
+    status: u8,
+    current_pixel: u16
 }
 
 impl Ppu {
@@ -39,7 +40,8 @@ impl Ppu {
             vram_address: 0,
             last_register: 0,
             nmi_occurred: false,
-            status: 0
+            status: 0,
+            current_pixel: 0
         }
     }
 
@@ -55,7 +57,7 @@ impl Ppu {
         }
 
         if (0 <= self.scanline) && (self.scanline >= 239) {
-            screen.draw_pixels(self.create_frame());
+            self.draw_tile(screen);
         }
 
         if (self.scanline == 261) && (self.cycles == 1) {
@@ -69,8 +71,34 @@ impl Ppu {
         }
     }
 
-    pub fn create_frame(&mut self) -> Vec<u8> {
-        vec![]
+    pub fn draw_tile(&mut self, screen: &mut Screen) {
+        if self.current_pixel >= 960 {
+            self.current_pixel = 0;
+        }
+//        warn!("Current pixel: {}", self.current_pixel);
+        let address = self.get_base_nametable_address() + self.current_pixel as u16;
+//        warn!("Nametable idx: {:#01X}", address);
+        let tile_address = self.ram[address as usize];
+//        warn!("Tile address: {:#01X}", tile_address);
+        let pattern_idx = self.get_background_pattern_table() as u16 + (tile_address * 16) as u16;
+//        warn!("Pattern table address: {:#01X}", pattern_idx);
+        let tile = &self.ram[(pattern_idx) as usize..=((pattern_idx) + 15) as usize];
+
+        for x in 0..=7 {
+            let left = tile[x as usize];
+            let right = tile[(x + 8) as usize];
+
+            let result = left | right;
+            for y in 0..=7 {
+                let pixel = nth_bit(result, y);
+                if pixel {
+                    let cor_x = ((self.current_pixel % 32 as u16) * 8) + y as u16;
+                    let cor_y = ((self.current_pixel / 30 as u16) * 8) + x as u16;
+                    screen.draw_pixel(cor_x, cor_y);
+                }
+            }
+        }
+        self.current_pixel += 1;
     }
 
     fn set_vblank(&mut self) {
@@ -86,7 +114,7 @@ impl Ppu {
     }
 
     pub fn fetch(&mut self, address: u16) -> u8 {
-        info!("ppu fetch: {:#01X}", address);
+        warn!("ppu fetch: {:#01X}", address);
         match address {
             0x2000 => self.latch, // PPUCTRL
             0x2001 => self.latch, // PPUMASK
@@ -94,6 +122,7 @@ impl Ppu {
                 let mut result = self.latch;
                 result &= 0b00_01_11_11;
                 if self.is_vblank() {
+                    println!("Is vblank");
                     result |= 0b10_00_00_00;
                 }
                 self.clear_vblank();
@@ -104,11 +133,13 @@ impl Ppu {
             0x2005 => self.latch, // PPUSCROLL
             0x2006 => self.latch, // PPUADDR
             0x2007 => {
+                // TODO: Move to func, use in drawing
                 match self.vram_address {
                     0..=0x1FFF => {
                         let address = self.get_vram_address();
                         let result = self.ram[address];
                         self.increment_vram();
+                        warn!("PPU read: {:#01X} from address {:#01X}", result, address);
                         result
                     },
                     0x2000..=0x2FFF => {
@@ -119,9 +150,12 @@ impl Ppu {
                             (VERTICAL, 1) | (VERTICAL, 3) => mirrored_down - 0x800,
                             _ => mirrored_down
                         };
-                        self.ram[address as usize]
+                        self.increment_vram();
+                        let result = self.ram[address as usize];
+                        warn!("PPU read: {:#01X} from address {:#01X}", result, address);
+                        return result
                     }
-                    _ => panic!("Unkown vram address: {:#01X}", self.vram_address)
+                    _ => panic!("Unknown vram address: {:#01X}", self.vram_address)
                 }
 
             }, // PPUDATA
@@ -130,7 +164,7 @@ impl Ppu {
     }
 
     pub fn save(&mut self, address: u16, value: u8) {
-        info!("ppu save: {:#01X} at address {:#01X}", value, address);
+        warn!("ppu save: {:#01X} at address {:#01X}", value, address);
         self.latch = value;
         match address {
             0x2000 => {
@@ -149,7 +183,7 @@ impl Ppu {
             }, // PPUADDR
             0x2007 => {
                 let address = self.get_vram_address();
-                info!("PPU 2007 saving {:#01X} at address {:#01X}", value, address);
+                warn!("PPU 2007 saving {:#01X} at address {:#01X}", value, address);
                 self.ram[address] = value;
                 self.increment_vram();
             }, // PPUDATA
