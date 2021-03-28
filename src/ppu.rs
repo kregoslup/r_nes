@@ -24,7 +24,8 @@ pub struct Ppu {
     last_register: u8,
     pub nmi_occurred: bool,
     status: u8,
-    current_pixel: u16
+    current_pixel: u16,
+    frame: Vec<(u16, u16)>
 }
 
 impl Ppu {
@@ -41,7 +42,8 @@ impl Ppu {
             last_register: 0,
             nmi_occurred: false,
             status: 0,
-            current_pixel: 0
+            current_pixel: 0,
+            frame: vec![]
         }
     }
 
@@ -74,15 +76,24 @@ impl Ppu {
     pub fn draw_tile(&mut self, screen: &mut Screen) {
         if self.current_pixel >= 960 {
             self.current_pixel = 0;
+            warn!("Draw pixels");
+            screen.draw_pixels(&self.frame);
+            self.frame = vec![];
+            return
         }
-//        warn!("Current pixel: {}", self.current_pixel);
+        if self.current_pixel == 0 {
+            screen.clear();
+        }
+        warn!("Current pixel: {}", self.current_pixel);
         let address = self.get_base_nametable_address() + self.current_pixel as u16;
-//        warn!("Nametable idx: {:#01X}", address);
-        let tile_address = self.ram[address as usize];
-//        warn!("Tile address: {:#01X}", tile_address);
-        let pattern_idx = self.get_background_pattern_table() as u16 + (tile_address * 16) as u16;
-//        warn!("Pattern table address: {:#01X}", pattern_idx);
+        warn!("Nametable idx: {:#01X}", address);
+        let tile_address = self.ram[address as usize] as u16;
+        warn!("Tile address: {:#01X}", tile_address);
+        let pattern_idx = self.get_background_pattern_table() as u16 + (tile_address * 16);
+        warn!("Pattern table address: {:#01X}", pattern_idx);
         let tile = &self.ram[(pattern_idx) as usize..=((pattern_idx) + 15) as usize];
+        let mut cor_x = (self.current_pixel % 32 as u16) * 8;
+        let mut cor_y = (self.current_pixel / 30 as u16) * 8;
 
         for x in 0..=7 {
             let left = tile[x as usize];
@@ -92,9 +103,11 @@ impl Ppu {
             for y in 0..=7 {
                 let pixel = nth_bit(result, y);
                 if pixel {
-                    let cor_x = ((self.current_pixel % 32 as u16) * 8) + y as u16;
-                    let cor_y = ((self.current_pixel / 30 as u16) * 8) + x as u16;
-                    screen.draw_pixel(cor_x, cor_y);
+                    let cor_x = cor_x + y as u16;
+                    let cor_y = cor_y + x as u16;
+                    let tuple = (cor_x, cor_y);
+                    self.frame.push(tuple);
+//                    screen.draw_pixel(cor_x, cor_y);
                 }
             }
         }
@@ -114,7 +127,7 @@ impl Ppu {
     }
 
     pub fn fetch(&mut self, address: u16) -> u8 {
-        warn!("ppu fetch: {:#01X}", address);
+        info!("ppu fetch: {:#01X}", address);
         match address {
             0x2000 => self.latch, // PPUCTRL
             0x2001 => self.latch, // PPUMASK
@@ -122,7 +135,7 @@ impl Ppu {
                 let mut result = self.latch;
                 result &= 0b00_01_11_11;
                 if self.is_vblank() {
-                    println!("Is vblank");
+                    warn!("Is vblank");
                     result |= 0b10_00_00_00;
                 }
                 self.clear_vblank();
@@ -164,7 +177,7 @@ impl Ppu {
     }
 
     pub fn save(&mut self, address: u16, value: u8) {
-        warn!("ppu save: {:#01X} at address {:#01X}", value, address);
+        info!("ppu save: {:#01X} at address {:#01X}", value, address);
         self.latch = value;
         match address {
             0x2000 => {

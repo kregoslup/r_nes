@@ -29,6 +29,7 @@ impl Screen {
                 SCREEN_HEIGHT,
             )
             .position_centered()
+            .resizable()
             .opengl()
             .build()
             .map_err(|e| e.to_string())
@@ -36,6 +37,7 @@ impl Screen {
 
         let mut canvas = window
             .into_canvas()
+            .accelerated()
             .build()
             .map_err(|e| e.to_string())
             .unwrap();
@@ -54,6 +56,27 @@ impl Screen {
         self.sdl.event_pump().unwrap()
     }
 
+    pub fn draw_pixels(&mut self, mut pixels: &Vec<(u16, u16)>) {
+        let creator = self.canvas.texture_creator();
+        let mut texture = creator
+            .create_texture_target(PixelFormatEnum::RGB24,SCREEN_WIDTH, SCREEN_HEIGHT)
+            .unwrap();
+        self.canvas.set_draw_color(pixels::Color::RGB(250, 250, 250));
+
+        pixels.iter().map(
+            |x| Point::new(x.0 as i32, x.1 as i32)
+        ).map(
+            |y| self.canvas.draw_point(y)
+        ).collect::<Vec<_>>();
+        self.canvas.present();
+        texture.update()
+    }
+
+    pub fn clear(&mut self) {
+        self.canvas.set_draw_color(pixels::Color::RGB(0, 0, 0));
+        self.canvas.clear();
+    }
+
     pub fn draw_pixel(&mut self, cor_x: u16, cor_y: u16) {
         let creator = self.canvas.texture_creator();
         let mut texture = creator
@@ -61,20 +84,7 @@ impl Screen {
             .unwrap();
         self.canvas.set_draw_color(pixels::Color::RGB(250, 250, 250));
         self.canvas.draw_point(Point::new(cor_x as i32, cor_y as i32));
-//        let mut x = (position % 32 as u16) * 8;
-//        let mut y = (position / 30 as u16) * 8;
-//        self.canvas.set_draw_color(pixels::Color::RGB(250, 250, 250));
-//        for i in 0..=7 {
-//            for k in 0..=7 {
-//                x += k;
-//                y += i;
-//                warn!("drawing x - {} y - {} ", x, y);
-//                self.canvas.draw_point(Point::new(x as i32, y as i32));
-//            }
-//        };
-
         self.canvas.present();
-//        texture.update()
     }
 
 }
