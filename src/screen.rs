@@ -1,90 +1,109 @@
-extern crate sdl2;
+extern crate winit;
+extern crate pixels;
+
 
 use log::{info, warn};
-use sdl2::event::Event;
-use sdl2::keyboard::Keycode;
-use sdl2::pixels;
-use sdl2::render::WindowCanvas;
-use std::fmt;
-use self::sdl2::{Sdl, EventPump};
-use self::sdl2::pixels::PixelFormatEnum;
-use self::sdl2::rect::Point;
+use core::fmt;
+use self::winit::event_loop::EventLoop;
+use self::winit::dpi::{PhysicalSize, LogicalSize, LogicalPosition};
+use self::pixels::{SurfaceTexture, Pixels};
+use self::winit::window::Window;
+use winit_input_helper::WinitInputHelper;
 
 const SCREEN_WIDTH: u32 = 256;
 const SCREEN_HEIGHT: u32 = 240;
 
 pub struct Screen {
-    canvas: WindowCanvas,
-    sdl: Sdl
+    pixels: Pixels<Window>,
+    window: Window
 }
 
 impl Screen {
     pub fn new() -> Screen {
-        let sdl_context = sdl2::init().unwrap();
-        let video_subsys = sdl_context.video().unwrap();
-        let window = video_subsys
-            .window(
-                "NES emulator",
-                SCREEN_WIDTH,
-                SCREEN_HEIGHT,
-            )
-            .position_centered()
-            .resizable()
-            .opengl()
-            .build()
-            .map_err(|e| e.to_string())
+        let event_loop = EventLoop::new();
+        let mut input = WinitInputHelper::new();
+        let (window, p_width, p_height, mut _hidpi_factor) =
+            Screen::create_window("NES", &event_loop);
+
+        let surface_texture = SurfaceTexture::new(p_width, p_height, &window);
+        let mut pixels = Pixels::new(SCREEN_WIDTH, SCREEN_HEIGHT, surface_texture)
             .unwrap();
-
-        let mut canvas = window
-            .into_canvas()
-            .accelerated()
-            .build()
-            .map_err(|e| e.to_string())
-            .unwrap();
-
-        canvas.set_draw_color(pixels::Color::RGB(0, 0, 0));
-        canvas.clear();
-        canvas.present();
-
+        pixels.render();
         Screen {
-            canvas,
-            sdl: sdl_context
+            pixels,
+            window
         }
     }
 
-    pub fn events_stream(&mut self) -> EventPump {
-        self.sdl.event_pump().unwrap()
-    }
-
-    pub fn draw_pixels(&mut self, mut pixels: &Vec<(u16, u16)>) {
-        let creator = self.canvas.texture_creator();
-        let mut texture = creator
-            .create_texture_target(PixelFormatEnum::RGB24,SCREEN_WIDTH, SCREEN_HEIGHT)
-            .unwrap();
-        self.canvas.set_draw_color(pixels::Color::RGB(250, 250, 250));
-
-        pixels.iter().map(
-            |x| Point::new(x.0 as i32, x.1 as i32)
-        ).map(
-            |y| self.canvas.draw_point(y)
-        ).collect::<Vec<_>>();
-        self.canvas.present();
-        texture.update()
+    pub fn draw_pixels(&mut self, frame: &Vec<(u16, u16)>) {
+        let screen = self.pixels.get_frame();
+        for pixel in frame.iter() {
+            let (x, y) = pixel;
+            let address = (((*x as u32 * SCREEN_HEIGHT) + *y as u32) * 4) as usize;
+            screen[address] = 0;
+            screen[address + 1] = 0;
+            screen[address + 2] = 0xff;
+            screen[address + 3] = 0;
+        }
+        self.pixels.render();
+        self.window.request_redraw();
     }
 
     pub fn clear(&mut self) {
-        self.canvas.set_draw_color(pixels::Color::RGB(0, 0, 0));
-        self.canvas.clear();
+        let frame = self.pixels.get_frame();
+        for pixel in frame.chunks_exact_mut(4) {
+            pixel[0] = 0x00; // R
+            pixel[1] = 0x00; // G
+            pixel[2] = 0x00; // B
+            pixel[3] = 0xff; // A
+        }
     }
 
-    pub fn draw_pixel(&mut self, cor_x: u16, cor_y: u16) {
-        let creator = self.canvas.texture_creator();
-        let mut texture = creator
-            .create_texture_target(PixelFormatEnum::RGB24,SCREEN_WIDTH, SCREEN_HEIGHT)
+    fn create_window(
+        title: &str,
+        event_loop: &EventLoop<()>,
+    ) -> (winit::window::Window, u32, u32, f64) {
+        // Create a hidden window so we can estimate a good default window size
+        let window = winit::window::WindowBuilder::new()
+            .with_visible(false)
+            .with_title(title)
+            .build(&event_loop)
             .unwrap();
-        self.canvas.set_draw_color(pixels::Color::RGB(250, 250, 250));
-        self.canvas.draw_point(Point::new(cor_x as i32, cor_y as i32));
-        self.canvas.present();
+        let hidpi_factor = window.scale_factor();
+
+        // Get dimensions
+        let width = SCREEN_WIDTH as f64;
+        let height = SCREEN_HEIGHT as f64;
+        let (monitor_width, monitor_height) = {
+            if let Some(monitor) = window.current_monitor() {
+                let size = monitor.size().to_logical(hidpi_factor);
+                (size.width, size.height)
+            } else {
+                (width, height)
+            }
+        };
+        let scale = (monitor_height / height * 2.0 / 3.0).round().max(1.0);
+
+        // Resize, center, and display the window
+        let min_size: winit::dpi::LogicalSize<f64> =
+            PhysicalSize::new(width, height).to_logical(hidpi_factor);
+        let default_size = LogicalSize::new(width * scale, height * scale);
+        let center = LogicalPosition::new(
+            (monitor_width - width * scale) / 2.0,
+            (monitor_height - height * scale) / 2.0,
+        );
+        window.set_inner_size(default_size);
+        window.set_min_inner_size(Some(min_size));
+        window.set_outer_position(center);
+        window.set_visible(true);
+
+        let size = default_size.to_physical::<f64>(hidpi_factor);
+        (
+            window,
+            size.width.round() as u32,
+            size.height.round() as u32,
+            hidpi_factor,
+        )
     }
 
 }

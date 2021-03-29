@@ -76,7 +76,7 @@ impl Ppu {
     pub fn draw_tile(&mut self, screen: &mut Screen) {
         if self.current_pixel >= 960 {
             self.current_pixel = 0;
-            warn!("Draw pixels");
+//            warn!("Draw pixels");
             screen.draw_pixels(&self.frame);
             self.frame = vec![];
             return
@@ -84,16 +84,16 @@ impl Ppu {
         if self.current_pixel == 0 {
             screen.clear();
         }
-        warn!("Current pixel: {}", self.current_pixel);
+//        warn!("Current pixel: {}", self.current_pixel);
         let address = self.get_base_nametable_address() + self.current_pixel as u16;
-        warn!("Nametable idx: {:#01X}", address);
+//        warn!("Nametable idx: {:#01X}", address);
         let tile_address = self.ram[address as usize] as u16;
-        warn!("Tile address: {:#01X}", tile_address);
+//        warn!("Tile address: {:#01X}", tile_address);
         let pattern_idx = self.get_background_pattern_table() as u16 + (tile_address * 16);
-        warn!("Pattern table address: {:#01X}", pattern_idx);
+//        warn!("Pattern table address: {:#01X}", pattern_idx);
         let tile = &self.ram[(pattern_idx) as usize..=((pattern_idx) + 15) as usize];
-        let mut cor_x = (self.current_pixel % 32 as u16) * 8;
-        let mut cor_y = (self.current_pixel / 30 as u16) * 8;
+        let mut cor_x = (self.current_pixel % 30 as u16) * 8;
+        let mut cor_y = (self.current_pixel / 32 as u16) * 8;
 
         for x in 0..=7 {
             let left = tile[x as usize];
@@ -193,8 +193,10 @@ impl Ppu {
             0x2006 => {
                 self.vram_address = combine_u8(self.latch, value);
                 self.latch = value;
+                warn!("Setting address to: {:#01X}", self.vram_address);
             }, // PPUADDR
             0x2007 => {
+                // TODO: Internal buffer
                 let address = self.get_vram_address();
                 warn!("PPU 2007 saving {:#01X} at address {:#01X}", value, address);
                 self.ram[address] = value;
