@@ -89,7 +89,7 @@ impl Ppu {
         let tile_address = self.ram[address as usize] as u16;
         let pattern_idx = self.get_background_pattern_table() as u16 + (tile_address * 16);
         let tile = &self.ram[(pattern_idx) as usize..=((pattern_idx) + 15) as usize];
-        let mut cor_x = (self.current_pixel % 30 as u16) * 8;
+        let mut cor_x = (self.current_pixel % 32 as u16) * 8;
         let mut cor_y = (self.current_pixel / 32 as u16) * 8;
 
         for x in 0..=7 {
@@ -108,7 +108,6 @@ impl Ppu {
             }
         }
         self.current_pixel += 1;
-//        screen.draw_pixels(&self.frame);
     }
 
     fn set_vblank(&mut self) {
