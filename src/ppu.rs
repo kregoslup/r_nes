@@ -25,7 +25,8 @@ pub struct Ppu {
     pub nmi_occurred: bool,
     status: u8,
     current_pixel: u16,
-    frame: Vec<(u16, u16)>
+    frame: Vec<(u16, u16)>,
+    internal_buffer: u8
 }
 
 impl Ppu {
@@ -33,7 +34,7 @@ impl Ppu {
         chr_rom.append(vec![0 as u8; 0x1FFF].as_mut());
         return Ppu {
             cycles: 0,
-            scanline: 0, // or 0
+            scanline: 0,
             ppu_status: 0,
             ram: chr_rom,
             nametable_mirroring: mirroring,
@@ -43,7 +44,8 @@ impl Ppu {
             nmi_occurred: false,
             status: 0,
             current_pixel: 0,
-            frame: vec![]
+            frame: vec![],
+            internal_buffer: 0
         }
     }
 
@@ -76,7 +78,6 @@ impl Ppu {
     pub fn draw_tile(&mut self, screen: &mut Screen) {
         if self.current_pixel >= 960 {
             self.current_pixel = 0;
-//            warn!("Draw pixels");
             screen.draw_pixels(&self.frame);
             self.frame = vec![];
             return
@@ -84,13 +85,9 @@ impl Ppu {
         if self.current_pixel == 0 {
             screen.clear();
         }
-//        warn!("Current pixel: {}", self.current_pixel);
         let address = self.get_base_nametable_address() + self.current_pixel as u16;
-//        warn!("Nametable idx: {:#01X}", address);
         let tile_address = self.ram[address as usize] as u16;
-//        warn!("Tile address: {:#01X}", tile_address);
         let pattern_idx = self.get_background_pattern_table() as u16 + (tile_address * 16);
-//        warn!("Pattern table address: {:#01X}", pattern_idx);
         let tile = &self.ram[(pattern_idx) as usize..=((pattern_idx) + 15) as usize];
         let mut cor_x = (self.current_pixel % 30 as u16) * 8;
         let mut cor_y = (self.current_pixel / 32 as u16) * 8;
@@ -101,17 +98,17 @@ impl Ppu {
 
             let result = left | right;
             for y in 0..=7 {
-                let pixel = nth_bit(result, y);
+                let pixel = nth_bit(result, 7 - y);
                 if pixel {
                     let cor_x = cor_x + y as u16;
                     let cor_y = cor_y + x as u16;
                     let tuple = (cor_x, cor_y);
                     self.frame.push(tuple);
-//                    screen.draw_pixel(cor_x, cor_y);
                 }
             }
         }
         self.current_pixel += 1;
+//        screen.draw_pixels(&self.frame);
     }
 
     fn set_vblank(&mut self) {
@@ -139,6 +136,7 @@ impl Ppu {
                     result |= 0b10_00_00_00;
                 }
                 self.clear_vblank();
+                self.latch = 0;
                 return result
             }, // PPUSTATUS
             0x2003 => self.latch, // OAMADDR
@@ -147,7 +145,7 @@ impl Ppu {
             0x2006 => self.latch, // PPUADDR
             0x2007 => {
                 // TODO: Move to func, use in drawing
-                match self.vram_address {
+                let new_data = match self.vram_address {
                     0..=0x1FFF => {
                         let address = self.get_vram_address();
                         let result = self.ram[address];
@@ -169,8 +167,10 @@ impl Ppu {
                         return result
                     }
                     _ => panic!("Unknown vram address: {:#01X}", self.vram_address)
-                }
-
+                };
+                let result = self.internal_buffer;
+                self.internal_buffer = new_data;
+                result
             }, // PPUDATA
             _ => panic!("Ppu port not implemented")
         }
@@ -178,7 +178,6 @@ impl Ppu {
 
     pub fn save(&mut self, address: u16, value: u8) {
         info!("ppu save: {:#01X} at address {:#01X}", value, address);
-        self.latch = value;
         match address {
             0x2000 => {
                 self.status = value;
@@ -191,19 +190,23 @@ impl Ppu {
             0x2004 => {}, // OAMDATA
             0x2005 => {}, // PPUSCROLL
             0x2006 => {
-                self.vram_address = combine_u8(self.latch, value);
+                let address = combine_u8(value, self.latch);
+                self.vram_address = address & 0x3FFF;
                 self.latch = value;
                 warn!("Setting address to: {:#01X}", self.vram_address);
             }, // PPUADDR
             0x2007 => {
                 // TODO: Internal buffer
                 let address = self.get_vram_address();
-                warn!("PPU 2007 saving {:#01X} at address {:#01X}", value, address);
-                self.ram[address] = value;
-                self.increment_vram();
+                if address >= 0x2000 {
+                    warn!("PPU 2007 saving {:#01X} at address {:#01X}", value, address);
+                    self.ram[address] = value;
+                    self.increment_vram();
+                }
             }, // PPUDATA
             _ => panic!("Ppu port not implemented")
         }
+        self.latch = value;
     }
 
     fn get_vram_address(&mut self) -> usize {
@@ -212,6 +215,7 @@ impl Ppu {
 
     fn increment_vram(&mut self) {
         self.vram_address = (Wrapping(self.vram_address) + Wrapping(self.get_vram_increment() as u16)).0;
+        self.vram_address &= 0x3FFF;
     }
 
     fn get_nmi_output(&mut self) -> bool {
@@ -273,30 +277,9 @@ impl Ppu {
         let real_address = address & PPU_ADDRESSABLE_RANGE;
     }
 
-    fn evaluate_background(&mut self) {
-
-    }
-
     pub fn emulate(&mut self, screen: &mut Screen) {
         self.tick(screen);
         self.tick(screen);
         self.tick(screen);
-    }
-
-    fn get_tile(&mut self, address: u16) -> Vec<u8> {
-        return Vec::new()
-//        let left_plane: [u8; 16] = self.get_left();
-//        let right_plane: [u8; 16] = self.get_right();
-//        return left_plane.iter().zip(&right_plane).map(|a, b| a + b).collect();
-    }
-
-    fn get_colour(address: u16) -> u8 {
-        let palette_lower_boundary = 0x3F00;
-        let palette_upper_boundary = 0x3F1D;
-        if address >= palette_upper_boundary || address <= palette_lower_boundary {
-            panic!("Unknown colour");
-        }
-
-        return 0
     }
 }

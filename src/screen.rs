@@ -39,7 +39,7 @@ impl Screen {
         let screen = self.pixels.get_frame();
         for pixel in frame.iter() {
             let (x, y) = pixel;
-            let address = (((*x as u32 * SCREEN_HEIGHT) + *y as u32) * 4) as usize;
+            let address = (((*y as u32 * SCREEN_WIDTH) + *x as u32) * 4) as usize;
             screen[address] = 0;
             screen[address + 1] = 0;
             screen[address + 2] = 0xff;
