@@ -9,6 +9,7 @@ use self::winit::dpi::{PhysicalSize, LogicalSize, LogicalPosition};
 use self::pixels::{SurfaceTexture, Pixels};
 use self::winit::window::Window;
 use winit_input_helper::WinitInputHelper;
+use crate::ppu::Colour;
 
 const SCREEN_WIDTH: u32 = 256;
 const SCREEN_HEIGHT: u32 = 240;
@@ -35,14 +36,14 @@ impl Screen {
         }
     }
 
-    pub fn draw_pixels(&mut self, frame: &Vec<(u16, u16)>) {
+    pub fn draw_pixels(&mut self, frame: &Vec<(u16, u16, Colour)>) {
         let screen = self.pixels.get_frame();
         for pixel in frame.iter() {
-            let (x, y) = pixel;
+            let (x, y, colour) = pixel;
             let address = (((*y as u32 * SCREEN_WIDTH) + *x as u32) * 4) as usize;
-            screen[address] = 0;
-            screen[address + 1] = 0;
-            screen[address + 2] = 0xff;
+            screen[address] = colour.r;
+            screen[address + 1] = colour.g;
+            screen[address + 2] = colour.b;
             screen[address + 3] = 0;
         }
         self.pixels.render();

@@ -7,9 +7,23 @@ use crate::ppu::NameTableMirroring::{HORIZONTAL, VERTICAL};
 
 static PPU_ADDRESSABLE_RANGE: u16 = 0x3FF;
 
+static PALETTE: &'static [(u8, u8, u8)] = &[
+    (84,  84,  84),    (0,  30, 116),   ( 8,  16, 144),   (48,   0, 136),   (68,   0, 100),   (92,   0,  48),   (84,   4,   0),   (60,  24,   0),   (32,  42,   0),   ( 8,  58,   0),   ( 0,  64,   0),   ( 0,  60,   0),   ( 0,  50,  60),   ( 0,   0,   0), (0, 0, 0), (0, 0, 0),
+    (152, 150, 152),    (8,  76, 196),  ( 48,  50, 236),  ( 92,  30, 228),  (136,  20, 176),  (160,  20, 100),  (152,  34,  32),  (120,  60,   0),  ( 84,  90,   0),  ( 40, 114,   0),  (  8, 124,   0),  (  0, 118,  40),  (  0, 102, 120),  (  0,   0,   0), (0, 0, 0), (0, 0, 0),
+    (236, 238, 236),   (76, 154, 236),  (120, 124, 236),  (176,  98, 236),  (228,  84, 236),  (236,  88, 180),  (236, 106, 100),  (212, 136,  32),  (160, 170,   0),  (116, 196,   0),  ( 76, 208,  32),  ( 56, 204, 108),  ( 56, 180, 204),  ( 60,  60,  60), (0, 0, 0), (0, 0, 0),
+    (236, 238, 236),  (168, 204, 236),  (188, 188, 236),  (212, 178, 236),  (236, 174, 236),  (236, 174, 212),  (236, 180, 176),  (228, 196, 144),  (204, 210, 120),  (180, 222, 120),  (168, 226, 144),  (152, 226, 180),  (160, 214, 228),  (160, 162, 160), (0, 0, 0), (0, 0, 0),
+];
+
 #[derive(Clone, Copy, Debug)]
 pub enum NameTableMirroring {
     HORIZONTAL, VERTICAL
+}
+
+#[derive(Clone, Debug, Copy)]
+pub struct Colour {
+    pub(crate) r: u8,
+    pub(crate) g: u8,
+    pub(crate) b: u8
 }
 
 #[derive(Debug)]
@@ -25,7 +39,7 @@ pub struct Ppu {
     pub nmi_occurred: bool,
     status: u8,
     current_pixel: u16,
-    frame: Vec<(u16, u16)>,
+    frame: Vec<(u16, u16, Colour)>,
     internal_buffer: u8
 }
 
@@ -60,7 +74,7 @@ impl Ppu {
             self.cycles = 0;
         }
 
-        if (0 <= self.scanline) && (self.scanline >= 239) {
+        if (0 <= self.scanline) && (self.scanline <= 239) {
             self.draw_tile(screen);
         }
 
@@ -89,25 +103,56 @@ impl Ppu {
         let tile_address = self.ram[address as usize] as u16;
         let pattern_idx = self.get_background_pattern_table() as u16 + (tile_address * 16);
         let tile = &self.ram[(pattern_idx) as usize..=((pattern_idx) + 15) as usize];
-        let mut cor_x = (self.current_pixel % 32 as u16) * 8;
-        let mut cor_y = (self.current_pixel / 32 as u16) * 8;
+        let mut tile_row = self.current_pixel % 32 as u16;
+        let mut tile_column = self.current_pixel / 32 as u16;
+        let colours = self.get_colour(tile_row, tile_column);
+        let mut cor_x = tile_row * 8;
+        let mut cor_y = tile_column * 8;
 
         for x in 0..=7 {
             let left = tile[x as usize];
             let right = tile[(x + 8) as usize];
 
-            let result = left | right;
             for y in 0..=7 {
-                let pixel = nth_bit(result, 7 - y);
-                if pixel {
-                    let cor_x = cor_x + y as u16;
-                    let cor_y = cor_y + x as u16;
-                    let tuple = (cor_x, cor_y);
-                    self.frame.push(tuple);
-                }
+                let left_pixel = nth_bit(left, 7 - y);
+                let right_pixel = nth_bit(right, 7 - y);
+
+                let pixel = ((right_pixel as u8) << 1) | left_pixel as u8;
+                let chosen_colour = self.ram[colours[pixel as usize] as usize];
+                let rgb = PALETTE[chosen_colour as usize];
+
+                let cor_x = cor_x + y as u16;
+                let cor_y = cor_y + x as u16;
+                let tuple = (cor_x, cor_y, Colour{r: rgb.0, g: rgb.1, b: rgb.2});
+                self.frame.push(tuple);
             }
         }
         self.current_pixel += 1;
+    }
+
+    fn get_colour(&self, tile_row: u16, tile_column: u16) -> Vec<u16> {
+        let attribute_table = self.get_base_nametable_address() + 0x03C0;
+        let attribute_idx = tile_column / 4 * 8 + tile_row / 4;
+        let attribute = self.ram[(attribute_table + attribute_idx) as usize];
+
+        let palette_idx = match(tile_column % 4 / 2, tile_row % 4 / 2) {
+            (0,0) => attribute,
+            (1,0) => (attribute >> 2),
+            (0,1) => (attribute >> 4),
+            (1,1) => (attribute >> 6),
+            _ => panic!("Unknown region")
+        } & 0b11;
+        let background: u16 = 0x3F00;
+        let palette_increment: u16 = 1 + (4 * palette_idx) as u16;
+
+        return Vec::from([background, background + palette_increment, background + palette_increment + 1, background + palette_increment + 2]);
+//        if self.scanline == 238 && self.cycles == 340 {
+//            warn!("pixel: {:#b}", pixel);
+//            for x in colours.iter() {
+//                warn!("Colour {:#01X}", x);
+//            }
+//            warn!("Chosen {:#01X}", chosen_colour);
+//        }
     }
 
     fn set_vblank(&mut self) {
@@ -131,7 +176,7 @@ impl Ppu {
                 let mut result = self.latch;
                 result &= 0b00_01_11_11;
                 if self.is_vblank() {
-                    warn!("Is vblank");
+//                    warn!("Is vblank");
                     result |= 0b10_00_00_00;
                 }
                 self.clear_vblank();
@@ -192,13 +237,12 @@ impl Ppu {
                 let address = combine_u8(value, self.latch);
                 self.vram_address = address & 0x3FFF;
                 self.latch = value;
-                warn!("Setting address to: {:#01X}", self.vram_address);
+//                warn!("Setting address to: {:#01X}", self.vram_address);
             }, // PPUADDR
             0x2007 => {
                 // TODO: Internal buffer
                 let address = self.get_vram_address();
                 if address >= 0x2000 {
-                    warn!("PPU 2007 saving {:#01X} at address {:#01X}", value, address);
                     self.ram[address] = value;
                     self.increment_vram();
                 }
@@ -249,7 +293,7 @@ impl Ppu {
         }
     }
 
-    fn get_base_nametable_address(&mut self) -> u16 {
+    fn get_base_nametable_address(&self) -> u16 {
         match self.status & 0b0000_0011 {
             0 => 0x2000,
             1 => 0x2400,
