@@ -1,4 +1,5 @@
-// TODO: Disable warnings
+extern crate winit;
+
 use crate::op_code::OpCode;
 use crate::addressing::AddressingMode::{IndexedIndirect, ZeroPage, Immediate, IndirectIndexed, ZeroPageIndexed, Absolute, AbsoluteIndexed, Accumulator, Indirect, Relative, Implied};
 use crate::bus::Bus;
@@ -10,7 +11,7 @@ use std::ops::{BitOr, BitAnd, BitXor, Shl, Shr};
 use log::{info, warn};
 use bitflags::_core::num::Wrapping;
 use std::{u8, fmt};
-use std::borrow::Borrow;
+use std::borrow::{Borrow, BorrowMut};
 use bitflags::_core::fmt::{Formatter, Error};
 use crate::cartridge::{CartridgeLoader, Cartridge};
 use std::path::Path;
@@ -21,6 +22,8 @@ use std::fmt::UpperHex;
 use crate::screen::Screen;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
+use self::winit::event_loop::EventLoop;
+use self::winit::platform::run_return::EventLoopExtRunReturn;
 
 pub struct Cpu {
     stack_pointer: u8,
@@ -67,19 +70,11 @@ impl Cpu {
         cpu
     }
 
-    pub fn emulation_loop(&mut self, logfile: &File, screen: &mut Screen) {
-       loop {
-           // poll_event?
-//           for event in screen.events_stream().poll_iter() {
-//               match event {
-//                   Event::Quit { .. } => break,
-//                   _ => {}
-//               }
-//           }
-           self.emulate(&logfile);
-           self.bus.emulate(screen);
-           // self.parse_input_action()
-       }
+    pub fn emulation_loop(&mut self, logfile: &File, screen: &mut Screen, mut event_loop: EventLoop<()>) {
+        event_loop.run_return(move |event, _, control_flow| {
+            self.emulate(&logfile);
+            self.bus.emulate(screen);
+        });
     }
 
     fn reset_vector(&mut self) {

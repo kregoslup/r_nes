@@ -1,3 +1,5 @@
+extern crate winit;
+
 use crate::screen::Screen;
 use crate::bus::Bus;
 use crate::cpu::Cpu;
@@ -6,6 +8,7 @@ use crate::ppu::Ppu;
 use crate::util::read_file;
 use std::path::Path;
 use std::fs::File;
+use self::winit::event_loop::EventLoop;
 
 pub struct Console {}
 
@@ -15,7 +18,8 @@ impl Console {
         let mut ppu = Ppu::new(cartridge.chr_rom.clone(), cartridge.nametable_mirroring);
         let mut bus = Bus::new(vec![0; 2048], ppu, cartridge);
         let mut cpu = Cpu::new(bus, None);
-        let mut screen = Screen::new();
-        cpu.emulation_loop(logfile, &mut screen)
+        let event_loop = EventLoop::new();
+        let mut screen = Screen::new(&event_loop);
+        cpu.emulation_loop(logfile, &mut screen, event_loop)
     }
 }

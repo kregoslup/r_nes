@@ -16,12 +16,11 @@ const SCREEN_HEIGHT: u32 = 240;
 
 pub struct Screen {
     pixels: Pixels<Window>,
-    window: Window
+    window: Window,
 }
 
 impl Screen {
-    pub fn new() -> Screen {
-        let event_loop = EventLoop::new();
+    pub fn new(event_loop: &EventLoop<()>) -> Screen {
         let mut input = WinitInputHelper::new();
         let (window, p_width, p_height, mut _hidpi_factor) =
             Screen::create_window("NES", &event_loop);
@@ -32,7 +31,7 @@ impl Screen {
         pixels.render();
         Screen {
             pixels,
-            window
+            window,
         }
     }
 
