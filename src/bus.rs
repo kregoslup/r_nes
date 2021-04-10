@@ -67,6 +67,11 @@ impl Bus {
             self.memory[as_ram_address] = value;
         } else if self.is_ppu(address) {
             self.ppu.save(self.as_ppu_address(address), value)
+        } else if self.is_oamdma(address) {
+            // TODO: Add 514 cpu cycles here
+            let address = ((value as u16) << 8) as usize;
+            let oamdma = &self.memory[address..(address + 255)];
+            self.ppu.write_oamdma(oamdma)
         } else if self.is_cartridge(address) {
             unimplemented!();
         } else if self.is_apu(address) {
@@ -74,6 +79,10 @@ impl Bus {
         } else {
             panic!("Memory address not supported, {:#01X}", address)
         }
+    }
+
+    fn is_oamdma(&self, address: u16) -> bool {
+        return address == 0x4014
     }
 
     fn is_apu(&self, address: u16) -> bool {

@@ -40,7 +40,8 @@ pub struct Ppu {
     status: u8,
     current_pixel: u16,
     frame: Vec<(u16, u16, Colour)>,
-    internal_buffer: u8
+    internal_buffer: u8,
+    oam: Vec<u8>
 }
 
 impl Ppu {
@@ -59,7 +60,8 @@ impl Ppu {
             status: 0,
             current_pixel: 0,
             frame: vec![],
-            internal_buffer: 0
+            internal_buffer: 0,
+            oam: vec![0 as u8; 0xFF]
         }
     }
 
@@ -146,13 +148,10 @@ impl Ppu {
         let palette_increment: u16 = 1 + (4 * palette_idx) as u16;
 
         return Vec::from([background, background + palette_increment, background + palette_increment + 1, background + palette_increment + 2]);
-//        if self.scanline == 238 && self.cycles == 340 {
-//            warn!("pixel: {:#b}", pixel);
-//            for x in colours.iter() {
-//                warn!("Colour {:#01X}", x);
-//            }
-//            warn!("Chosen {:#01X}", chosen_colour);
-//        }
+    }
+
+    pub fn write_oamdma(&mut self, memory: &[u8]) {
+        self.oam.copy_from_slice(memory);
     }
 
     fn set_vblank(&mut self) {
