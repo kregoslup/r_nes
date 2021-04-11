@@ -119,10 +119,12 @@ impl Ppu {
 
             let palette_idx = 0b11 & attributes;
             let colors = self.get_sprite_color(palette_idx);
-//            warn!("palette {:#01X} {:#01X} {:#01X} {:#01X}", colors[0], colors[1], colors[2], colors[3]);
 
             let pattern_table_start = self.get_sprite_pattern_table();
             let tile = &self.ram[(pattern_table_start + (tile_idx * 16)) as usize..=(pattern_table_start + 15 + (tile_idx * 16)) as usize];
+
+            if tile_y > 239 { continue };
+            if tile_x > 249 { continue };
 
             for x in 0..=7 {
                 let left = tile[x as usize];
@@ -137,13 +139,14 @@ impl Ppu {
                     let chosen_colour = self.ram[colors[pixel as usize] as usize];
                     let rgb = PALETTE[chosen_colour as usize];
 
-                    let (cor_y, cor_x) = match (flip_horizontal, flip_vertical) {
-                        (true, false) => {(tile_x + x as u16, tile_y + y as u16)},
-                        (true, true) => {(tile_x + x as u16, tile_y + y as u16)},
-                        (false, false) => {(tile_x + x as u16, tile_y + y as u16)},
-                        (false, true) => {(tile_x + x as u16, tile_y + y as u16)},
-                    };
-                    self.frame.push((cor_x as u16, cor_y as u16, Colour{r: rgb.0, g: rgb.1, b: rgb.2}))
+//                    let (cor_y, cor_x) = match (flip_horizontal, flip_vertical) {
+//                        (true, false) => {(tile_x + x as u16, tile_y + y as u16)},
+//                        (true, true) => {(tile_x + x as u16, tile_y + y as u16)},
+//                        (false, false) => {(tile_x + x as u16, tile_y + y as u16)},
+//                        (false, true) => {(tile_x + x as u16, tile_y + y as u16)},
+//                    };
+//                    self.frame.push((cor_x as u16, cor_y as u16, Colour{r: rgb.0, g: rgb.1, b: rgb.2}))
+                    self.frame.push((tile_x + y as u16, tile_y + x as u16, Colour{r: rgb.0, g: rgb.1, b: rgb.2}))
                 }
             }
         }
