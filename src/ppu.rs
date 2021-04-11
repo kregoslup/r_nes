@@ -41,7 +41,9 @@ pub struct Ppu {
     current_pixel: u16,
     frame: Vec<(u16, u16, Colour)>,
     internal_buffer: u8,
-    oam: Vec<u8>
+    oam: Vec<u8>,
+    oam_address: u8,
+    total_cycles: u64
 }
 
 impl Ppu {
@@ -61,7 +63,9 @@ impl Ppu {
             current_pixel: 0,
             frame: vec![],
             internal_buffer: 0,
-            oam: vec![0 as u8; 0xFF]
+            oam: vec![0 as u8; 256],
+            oam_address: 0,
+            total_cycles: 0
         }
     }
 
@@ -70,6 +74,7 @@ impl Ppu {
             info!("[PPU]: NMI OCCURRED");
         }
         self.cycles += 1;
+        self.total_cycles = (Wrapping(self.total_cycles) + Wrapping(1)).0;
 
         if self.cycles == 341 {
             self.scanline += 1;
@@ -77,7 +82,12 @@ impl Ppu {
         }
 
         if (0 <= self.scanline) && (self.scanline <= 239) {
-            self.draw_tile(screen);
+            if self.total_cycles > 1000_000 {
+                self.draw_tile(screen);
+                if self.scanline == 238 {
+                    self.draw_sprites(screen);
+                }
+            }
         }
 
         if (self.scanline == 261) && (self.cycles == 1) {
@@ -88,6 +98,54 @@ impl Ppu {
             info!("Setting vblank, nmi output: {}", self.get_nmi_output());
             self.set_vblank();
             self.nmi_occurred = true;
+        }
+    }
+
+    pub fn get_sprite_color(&mut self, palette_idx: u8) -> Vec<u16> {
+        let background: u16 = 0x3F00;
+        let palette_increment: u16 = (0x11 + (4 * (palette_idx))) as u16;
+        return Vec::from([background, background + palette_increment, background + palette_increment + 1, background + palette_increment + 2]);
+    }
+
+    pub fn draw_sprites(&mut self, screen: &mut Screen) {
+        for i in (0..self.oam.len()).step_by(4) {
+            let tile_y = self.oam[i] as u16;
+            let tile_idx = self.oam[i + 1] as u16;
+            let attributes = self.oam[i + 2];
+            let tile_x = self.oam[i + 3] as u16;
+
+            let flip_horizontal = nth_bit(attributes, 6);
+            let flip_vertical = nth_bit(attributes, 7);
+
+            let palette_idx = 0b11 & attributes;
+            let colors = self.get_sprite_color(palette_idx);
+//            warn!("palette {:#01X} {:#01X} {:#01X} {:#01X}", colors[0], colors[1], colors[2], colors[3]);
+
+            let pattern_table_start = self.get_sprite_pattern_table();
+            let tile = &self.ram[(pattern_table_start + (tile_idx * 16)) as usize..=(pattern_table_start + 15 + (tile_idx * 16)) as usize];
+
+            for x in 0..=7 {
+                let left = tile[x as usize];
+                let right = tile[(x + 8) as usize];
+
+                for y in 0..=7 {
+                    let left_pixel = nth_bit(left, 7 - y);
+                    let right_pixel = nth_bit(right, 7 - y);
+
+                    let pixel = ((right_pixel as u8) << 1) | left_pixel as u8;
+                    if pixel == 0 { continue };
+                    let chosen_colour = self.ram[colors[pixel as usize] as usize];
+                    let rgb = PALETTE[chosen_colour as usize];
+
+                    let (cor_y, cor_x) = match (flip_horizontal, flip_vertical) {
+                        (true, false) => {(tile_x + x as u16, tile_y + y as u16)},
+                        (true, true) => {(tile_x + x as u16, tile_y + y as u16)},
+                        (false, false) => {(tile_x + x as u16, tile_y + y as u16)},
+                        (false, true) => {(tile_x + x as u16, tile_y + y as u16)},
+                    };
+                    self.frame.push((cor_x as u16, cor_y as u16, Colour{r: rgb.0, g: rgb.1, b: rgb.2}))
+                }
+            }
         }
     }
 
@@ -107,7 +165,7 @@ impl Ppu {
         let tile = &self.ram[(pattern_idx) as usize..=((pattern_idx) + 15) as usize];
         let mut tile_row = self.current_pixel % 32 as u16;
         let mut tile_column = self.current_pixel / 32 as u16;
-        let colours = self.get_colour(tile_row, tile_column);
+        let colours = self.get_background_colour(tile_row, tile_column);
         let mut cor_x = tile_row * 8;
         let mut cor_y = tile_column * 8;
 
@@ -132,7 +190,7 @@ impl Ppu {
         self.current_pixel += 1;
     }
 
-    fn get_colour(&self, tile_row: u16, tile_column: u16) -> Vec<u16> {
+    fn get_background_colour(&self, tile_row: u16, tile_column: u16) -> Vec<u16> {
         let attribute_table = self.get_base_nametable_address() + 0x03C0;
         let attribute_idx = tile_column / 4 * 8 + tile_row / 4;
         let attribute = self.ram[(attribute_table + attribute_idx) as usize];
@@ -229,8 +287,15 @@ impl Ppu {
             0x2002 => {
                 self.latch = value;
             }, // PPUSTATUS
-            0x2003 => {}, // OAMADDR
-            0x2004 => {}, // OAMDATA
+            0x2003 => {
+                self.oam_address = value;
+            }, // OAMADDR
+            0x2004 => {
+                let address = self.oam_address;
+                self.oam[address as usize] = value;
+                self.oam_address = (Wrapping(self.oam_address) + Wrapping(1)).0;
+                self.latch = value;
+            }, // OAMDATA
             0x2005 => {}, // PPUSCROLL
             0x2006 => {
                 let address = combine_u8(value, self.latch);

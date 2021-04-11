@@ -70,7 +70,7 @@ impl Bus {
         } else if self.is_oamdma(address) {
             // TODO: Add 514 cpu cycles here
             let address = ((value as u16) << 8) as usize;
-            let oamdma = &self.memory[address..(address + 255)];
+            let oamdma = &self.memory[address..(address + 256)];
             self.ppu.write_oamdma(oamdma)
         } else if self.is_cartridge(address) {
             unimplemented!();
