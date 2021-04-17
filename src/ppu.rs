@@ -14,6 +14,8 @@ static PALETTE: &'static [(u8, u8, u8)] = &[
     (236, 238, 236),  (168, 204, 236),  (188, 188, 236),  (212, 178, 236),  (236, 174, 236),  (236, 174, 212),  (236, 180, 176),  (228, 196, 144),  (204, 210, 120),  (180, 222, 120),  (168, 226, 144),  (152, 226, 180),  (160, 214, 228),  (160, 162, 160), (0, 0, 0), (0, 0, 0),
 ];
 
+static STARTUP_CYCLES: u64 = 1_000_000;
+
 #[derive(Clone, Copy, Debug)]
 pub enum NameTableMirroring {
     HORIZONTAL, VERTICAL
@@ -61,12 +63,16 @@ impl Ppu {
             nmi_occurred: false,
             status: 0,
             current_pixel: 0,
-            frame: vec![],
+            frame: Ppu::new_frame(),
             internal_buffer: 0,
             oam: vec![0 as u8; 256],
             oam_address: 0,
             total_cycles: 0
         }
+    }
+
+    fn new_frame() -> Vec<(u16, u16, Colour)> {
+        vec![(0, 0, Colour{r: 0, g: 0, b: 0}); 960]
     }
 
     pub fn tick(&mut self, screen: &mut Screen) {
@@ -82,12 +88,7 @@ impl Ppu {
         }
 
         if (0 <= self.scanline) && (self.scanline <= 239) {
-            if self.total_cycles > 1000_000 {
-                self.draw_tile(screen);
-                if self.scanline == 238 {
-                    self.draw_sprites(screen);
-                }
-            }
+
         }
 
         if (self.scanline == 261) && (self.cycles == 1) {
@@ -98,6 +99,18 @@ impl Ppu {
             info!("Setting vblank, nmi output: {}", self.get_nmi_output());
             self.set_vblank();
             self.nmi_occurred = true;
+        }
+    }
+
+    fn draw(&mut self, screen: &mut Screen) {
+        if self.total_cycles > STARTUP_CYCLES {
+            self.draw_tile(screen);
+            if self.current_pixel >= 960 {
+                self.current_pixel = 0;
+                self.draw_sprites(screen);
+                screen.draw_pixels(&self.frame);
+                self.frame = Ppu::new_frame();
+            }
         }
     }
 
@@ -139,29 +152,19 @@ impl Ppu {
                     let chosen_colour = self.ram[colors[pixel as usize] as usize];
                     let rgb = PALETTE[chosen_colour as usize];
 
-//                    let (cor_y, cor_x) = match (flip_horizontal, flip_vertical) {
-//                        (true, false) => {(tile_x + x as u16, tile_y + y as u16)},
-//                        (true, true) => {(tile_x + x as u16, tile_y + y as u16)},
-//                        (false, false) => {(tile_x + x as u16, tile_y + y as u16)},
-//                        (false, true) => {(tile_x + x as u16, tile_y + y as u16)},
-//                    };
-//                    self.frame.push((cor_x as u16, cor_y as u16, Colour{r: rgb.0, g: rgb.1, b: rgb.2}))
-                    self.frame.push((tile_x + y as u16, tile_y + x as u16, Colour{r: rgb.0, g: rgb.1, b: rgb.2}))
+                    let (cor_x, cor_y) = match (flip_horizontal, flip_vertical) {
+                        (true, false) => {(tile_x + x as u16, tile_y + y as u16)},
+                        (true, true) => {(tile_x + x as u16, tile_y + y as u16)},
+                        (false, false) => {(tile_x + x as u16, tile_y + y as u16)},
+                        (false, true) => {(tile_x + x as u16, tile_y + y as u16)},
+                    };
+                    self.frame.push((cor_x as u16, cor_y as u16, Colour{r: rgb.0, g: rgb.1, b: rgb.2}))
                 }
             }
         }
     }
 
     pub fn draw_tile(&mut self, screen: &mut Screen) {
-        if self.current_pixel >= 960 {
-            self.current_pixel = 0;
-            screen.draw_pixels(&self.frame);
-            self.frame = vec![];
-            return
-        }
-        if self.current_pixel == 0 {
-            screen.clear();
-        }
         let address = self.get_base_nametable_address() + self.current_pixel as u16;
         let tile_address = self.ram[address as usize] as u16;
         let pattern_idx = self.get_background_pattern_table() as u16 + (tile_address * 16);
