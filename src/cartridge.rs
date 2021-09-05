@@ -47,7 +47,7 @@ pub struct Cartridge {
 
 impl Cartridge {
 
-    // TODO: Add mocking, use ONLY for testing
+    // TODO: Add mocking, use only for testing
     pub fn new() -> Cartridge {
         return Cartridge {
             prg_rom: vec![],

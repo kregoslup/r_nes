@@ -307,7 +307,6 @@ impl Ppu {
                 let address = combine_u8(value, self.latch);
                 self.vram_address = address & 0x3FFF;
                 self.latch = value;
-//                warn!("Setting address to: {:#01X}", self.vram_address);
             }, // PPUADDR
             0x2007 => {
                 // TODO: Internal buffer
@@ -333,10 +332,6 @@ impl Ppu {
 
     fn get_nmi_output(&mut self) -> bool {
         nth_bit(self.status, 7)
-    }
-
-    fn ppu_master_slave(&mut self) {
-        // TODO
     }
 
     fn get_sprite_size(&mut self) -> u8 {

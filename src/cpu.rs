@@ -952,11 +952,9 @@ mod tests {
         assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::CARRY)
     }
 
-    // TODO: OVERFLOW??
     #[test]
     #[ignore]
     fn test_overflow_sub() {
-        // FIXME: Somehow this doesn't work
         let mut cpu = create_test_cpu(vec![0xE1, 0x02, 0x04, 0x00, 176]);
         reset_cpu(&mut cpu);
         cpu.acc = 80;
@@ -985,7 +983,6 @@ mod tests {
         assert_eq!(cpu.status, Flags::PLACEHOLDER | Flags::CARRY)
     }
 
-    // TODO: OVERFLOW??
     #[test]
     #[ignore]
     fn test_borrow() {
