@@ -1,7 +1,7 @@
 # NES emulator in rust
 
 ## Description
-![Donkey kong screenshot](https://i.imgur.com/Bn5FSSp.png)
+<img src="https://i.imgur.com/Bn5FSSp.png" width="300">
 
 [NES](https://en.wikipedia.org/wiki/Nintendo_Entertainment_System) emulator written in rust. Unofficial opcodes are not supported. Only mapper 0 is implemented. 
 
