@@ -30,7 +30,7 @@ mod console;
 
 fn main() {
     configure_logging();
-    let cartridge_path = Path::new("rom/Donkey Kong (World) (Rev A).nes");
+    let cartridge_path = Path::new("rom/nestest.nes");
     let logfile = File::create("testing/output.txt").unwrap();
     Console::power(&cartridge_path, &logfile);
 }

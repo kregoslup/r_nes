@@ -177,14 +177,3 @@ impl CartridgeLoader {
         return self.payload[chr_start..(chr_start + chr_size)].to_vec()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_load_cartridge() {
-        let cartridge = CartridgeLoader::load_cartridge(vec![0, 0, 0, 0, 0x91, 0x82]);
-        assert_eq!(cartridge.mapper_code, 0x12)
-    }
-}
